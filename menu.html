@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VR Phobia Exposure — Menú principal</title>
+  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+  <script>
+    AFRAME.registerComponent('vr-raise-content', {
+      schema: { offsetY: { type: 'number', default: 0.8 } },
+      init: function () {
+        var self = this;
+        this.scene = this.el.sceneEl;
+        this.scene.addEventListener('enter-vr', function () { self.el.setAttribute('position', '0 ' + self.data.offsetY + ' 0'); });
+        this.scene.addEventListener('exit-vr', function () { self.el.setAttribute('position', '0 0 0'); });
+      }
+    });
+    AFRAME.registerComponent('vr-camera-height', {
+      schema: { height: { type: 'number', default: 2.0 } },
+      tick: function () {
+        if (this.el.sceneEl.is('vr-mode')) this.el.object3D.position.y = this.data.height;
+      }
+    });
+  </script>
+  <style>
+    html, body { margin: 0; overflow: hidden; background: #0f1520 !important; min-height: 100vh; }
+    #ui-overlay { position: fixed; top: 0; left: 0; right: 0; padding: 12px; background: rgba(0,0,0,0.6); color: #fff; font-family: system-ui, sans-serif; font-size: 14px; z-index: 100; display: flex; justify-content: space-between; align-items: center; }
+    #emergency-exit { padding: 8px 16px; background: #c00; color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; }
+    #emergency-exit:hover { background: #e00; }
+    a-scene { display: block; width: 100%; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="ui-overlay">
+    <span>Elige una fobia — Menú VR</span>
+    <button id="emergency-exit">EMERGENCY EXIT</button>
+  </div>
+
+  <a-scene embedded id="menu-scene">
+    <a-assets>
+      <img id="tex-card" src="https://cdn.aframe.io/aframe/examples/ui/rounded-rect.png" crossorigin="anonymous" />
+    </a-assets>
+
+    <a-entity id="camera-rig" position="0 1.6 0" vr-camera-height="height: 2.0">
+      <a-entity camera look-controls wasd-controls position="0 0 0" cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
+      <a-entity hand-tracking-controls="hand: left; modelStyle: mesh" raycaster="objects: .clickable; far: 5" hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0"></a-entity>
+      <a-entity hand-tracking-controls="hand: right; modelStyle: mesh" raycaster="objects: .clickable; far: 5" hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0"></a-entity>
+    </a-entity>
+
+    <a-entity id="menu-content" vr-raise-content="offsetY: 0.8">
+    <!-- Sky neutro -->
+    <a-sky color="#0f1520"></a-sky>
+
+    <!-- 5 tarjetas flotantes: fobias (Y alto para VR sentado/de pie) -->
+    <a-entity id="card-arachnophobia" class="clickable phobia-card" position="-2 2.5 -2" data-phobia-id="arachnophobia" data-phobia-name="Arachnophobia">
+      <a-plane width="1.2" height="0.7" color="#1a2332" position="0 0 0" class="clickable"></a-plane>
+      <a-text value="Arachnophobia" anchor="center" align="center" position="0 0.15 0.01" color="#fff" width="1.1"></a-text>
+      <a-text value="Aracnofobia" anchor="center" align="center" position="0 0 0.01" color="#8ab4f8" width="1.1" font-size="0.2"></a-text>
+      <a-text value="Miedo a las arañas" anchor="center" align="center" position="0 -0.15 0.01" color="#8892a0" width="1" font-size="0.16"></a-text>
+    </a-entity>
+
+    <a-entity id="card-claustrophobia" class="clickable phobia-card" position="0 2.5 -2" data-phobia-id="claustrophobia" data-phobia-name="Claustrophobia">
+      <a-plane width="1.2" height="0.7" color="#1a2332" position="0 0 0" class="clickable"></a-plane>
+      <a-text value="Claustrophobia" anchor="center" align="center" position="0 0.15 0.01" color="#fff" width="1.1"></a-text>
+      <a-text value="Claustrofobia" anchor="center" align="center" position="0 0 0.01" color="#8ab4f8" width="1.1" font-size="0.2"></a-text>
+      <a-text value="Espacios cerrados" anchor="center" align="center" position="0 -0.15 0.01" color="#8892a0" width="1" font-size="0.16"></a-text>
+    </a-entity>
+
+    <a-entity id="card-acrophobia" class="clickable phobia-card" position="2 2.5 -2" data-phobia-id="acrophobia" data-phobia-name="Acrophobia">
+      <a-plane width="1.2" height="0.7" color="#1a2332" position="0 0 0" class="clickable"></a-plane>
+      <a-text value="Acrophobia" anchor="center" align="center" position="0 0.15 0.01" color="#fff" width="1.1"></a-text>
+      <a-text value="Acrofobia" anchor="center" align="center" position="0 0 0.01" color="#8ab4f8" width="1.1" font-size="0.2"></a-text>
+      <a-text value="Miedo a las alturas" anchor="center" align="center" position="0 -0.15 0.01" color="#8892a0" width="1" font-size="0.16"></a-text>
+    </a-entity>
+
+    <a-entity id="card-ophidiophobia" class="clickable phobia-card" position="-1 2.0 -2" data-phobia-id="ophidiophobia" data-phobia-name="Ophidiophobia">
+      <a-plane width="1.2" height="0.7" color="#1a2332" position="0 0 0" class="clickable"></a-plane>
+      <a-text value="Ophidiophobia" anchor="center" align="center" position="0 0.15 0.01" color="#fff" width="1.1"></a-text>
+      <a-text value="Ofidiofobia" anchor="center" align="center" position="0 0 0.01" color="#8ab4f8" width="1.1" font-size="0.2"></a-text>
+      <a-text value="Miedo a serpientes" anchor="center" align="center" position="0 -0.15 0.01" color="#8892a0" width="1" font-size="0.16"></a-text>
+    </a-entity>
+
+    <a-entity id="card-entomophobia" class="clickable phobia-card" position="1 2.0 -2" data-phobia-id="entomophobia" data-phobia-name="Entomophobia">
+      <a-plane width="1.2" height="0.7" color="#1a2332" position="0 0 0" class="clickable"></a-plane>
+      <a-text value="Entomophobia" anchor="center" align="center" position="0 0.15 0.01" color="#fff" width="1.1"></a-text>
+      <a-text value="Entomofobia" anchor="center" align="center" position="0 0 0.01" color="#8ab4f8" width="1.1" font-size="0.2"></a-text>
+      <a-text value="Miedo a insectos" anchor="center" align="center" position="0 -0.15 0.01" color="#8892a0" width="1" font-size="0.16"></a-text>
+    </a-entity>
+
+    <a-light type="ambient" intensity="0.6"></a-light>
+    <a-light type="directional" position="1 1 1" intensity="0.8"></a-light>
+    </a-entity>
+  </a-scene>
+
+  <script src="js/app-base.js"></script>
+  <script src="js/logger.js"></script>
+  <script>
+    document.querySelector('a-scene').addEventListener('loaded', function () {
+      var el = document.querySelector('a-scene');
+      if (el && el.renderer) el.renderer.setClearColor(0x0f1520);
+    });
+    (function () {
+      // Sincroniza el entity con la muñeca para que el raycaster salga desde la mano (hand-tracking-controls deja el entity en 0,0,0).
+      AFRAME.registerComponent('hand-pose-sync', {
+        tick: function () {
+          var comp = this.el.components['hand-tracking-controls'];
+          if (!comp || !comp.wristObject3D) return;
+          var wrist = comp.wristObject3D;
+          var parent = this.el.parentEl && this.el.parentEl.object3D;
+          if (!parent) return;
+          var THREE = AFRAME.THREE;
+          var pos = this._pos || (this._pos = new THREE.Vector3());
+          var quat = this._quat || (this._quat = new THREE.Quaternion());
+          var parentQuat = this._parentQuat || (this._parentQuat = new THREE.Quaternion());
+          wrist.getWorldPosition(pos);
+          parent.worldToLocal(pos);
+          this.el.object3D.position.copy(pos);
+          wrist.getWorldQuaternion(quat);
+          parent.getWorldQuaternion(parentQuat);
+          this.el.object3D.quaternion.copy(quat).premultiply(parentQuat.clone().invert());
+        }
+      });
+
+      AFRAME.registerComponent('hand-pinch-cursor', {
+        init: function () {
+          var self = this;
+          this.el.addEventListener('pinchended', function () {
+            var raycaster = self.el.components.raycaster;
+            if (!raycaster) return;
+            var els = raycaster.intersectedEls || (raycaster.intersections && raycaster.intersections.length ? [raycaster.intersections[0].object.el].filter(Boolean) : []);
+            var target = els[0];
+            if (!target) return;
+            while (target && !target.classList.contains('clickable')) target = target.parentEl;
+            if (target) target.emit('click');
+          });
+        }
+      });
+
+      AFRAME.registerComponent('hand-laser-visual', {
+        init: function () {
+          var el = this.el;
+          var rayLength = 5;
+          this.rayLength = rayLength;
+          this.lineEl = document.createElement('a-entity');
+          this.lineEl.setAttribute('geometry', 'primitive: cylinder; radius: 0.006; height: ' + rayLength);
+          this.lineEl.setAttribute('material', 'color: #00d4ff; opacity: 0.85; transparent: true');
+          this.lineEl.setAttribute('rotation', '90 0 0');
+          this.lineEl.setAttribute('position', '0 0 ' + (-rayLength / 2));
+          this.cursorEl = document.createElement('a-entity');
+          this.cursorEl.setAttribute('geometry', 'primitive: ring; radiusInner: 0.015; radiusOuter: 0.025');
+          this.cursorEl.setAttribute('material', 'color: #00d4ff; side: double');
+          this.cursorEl.setAttribute('rotation', '90 0 0');
+          this.cursorEl.setAttribute('position', '0 0 -' + rayLength);
+          el.appendChild(this.lineEl);
+          el.appendChild(this.cursorEl);
+        },
+        tick: function () {
+          var raycaster = this.el.components.raycaster;
+          if (!raycaster) return;
+          var dist = this.rayLength;
+          if (raycaster.intersections && raycaster.intersections.length > 0 && raycaster.intersections[0].distance !== undefined) {
+            dist = Math.min(raycaster.intersections[0].distance, this.rayLength);
+          }
+          this.lineEl.setAttribute('geometry', 'primitive: cylinder; radius: 0.006; height: ' + dist);
+          this.lineEl.setAttribute('position', '0 0 ' + (-dist / 2));
+          this.cursorEl.setAttribute('position', '0 0 -' + dist);
+        }
+      });
+    })();
+    document.getElementById('emergency-exit').addEventListener('click', function () {
+      if (window.VRPhobiaLogger) VRPhobiaLogger.emergencyExit(null, null, 'user_triggered');
+      window.location.href = 'index.html';
+    });
+
+    document.querySelectorAll('.phobia-card').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var id = el.getAttribute('data-phobia-id');
+        var name = el.getAttribute('data-phobia-name');
+        if (window.VRPhobiaLogger) VRPhobiaLogger.phobiaSelected(id, name);
+        try {
+          sessionStorage.setItem('vr_phobia_id', id);
+          sessionStorage.setItem('vr_phobia_name', name);
+        } catch (e) {}
+        window.location.href = 'level-select.html';
+      });
+    });
+
+    // Cargar thumbnails: reemplazar material por completo para evitar capa gris (A-Frame no sobrescribe)
+    function applyThumbnailToCard(phobia, scene) {
+      var card = document.getElementById('card-' + phobia.id);
+      if (!card || !phobia.thumbnail) return;
+      var url = typeof assetUrl === 'function' ? assetUrl(phobia.thumbnail) : phobia.thumbnail;
+      var plane = card.querySelector('a-plane');
+      if (!plane) return;
+
+      var retries = 0;
+      function setTexture(img) {
+        var mesh = plane.getObject3D('mesh');
+        if (!mesh) {
+          if (scene.hasLoaded && retries++ < 25) setTimeout(function () { setTexture(img); }, 60);
+          return;
+        }
+        var THREE = AFRAME.THREE;
+        if (!THREE) return;
+        var tex = new THREE.Texture(img);
+        tex.needsUpdate = true;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+        var newMat = new THREE.MeshBasicMaterial({
+          map: tex,
+          color: 0xffffff,
+          side: THREE.DoubleSide,
+          depthWrite: true,
+          depthTest: true
+        });
+        if (mesh.material) {
+          if (mesh.material.map) mesh.material.map.dispose();
+          mesh.material.dispose();
+        }
+        mesh.material = newMat;
+      }
+
+      var img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = function () {
+        var doApply = function () { setTexture(img); };
+        if (img.decode) {
+          img.decode().then(doApply).catch(doApply);
+        } else {
+          requestAnimationFrame(doApply);
+        }
+      };
+      img.onerror = function () { plane.setAttribute('material', { src: url, color: '#fff' }); };
+      img.src = url;
+    }
+
+    fetch(typeof assetUrl === 'function' ? assetUrl('data/content.json') : 'data/content.json')
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (!data.phobias) return;
+        var scene = document.querySelector('a-scene');
+        function applyAll() {
+          setTimeout(function () {
+            data.phobias.forEach(function (phobia) { applyThumbnailToCard(phobia, scene); });
+          }, 150);
+        }
+        if (scene.hasLoaded) {
+          applyAll();
+        } else {
+          scene.addEventListener('loaded', applyAll);
+        }
+      })
+      .catch(function () {});
+  </script>
+</body>
+</html>

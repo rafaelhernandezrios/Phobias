@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VR Phobia Exposure — Elegir nivel</title>
+  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+  <script>
+    AFRAME.registerComponent('vr-raise-content', {
+      schema: { offsetY: { type: 'number', default: 0.8 } },
+      init: function () {
+        var self = this;
+        this.scene = this.el.sceneEl;
+        this.scene.addEventListener('enter-vr', function () { self.el.setAttribute('position', '0 ' + self.data.offsetY + ' 0'); });
+        this.scene.addEventListener('exit-vr', function () { self.el.setAttribute('position', '0 0 0'); });
+      }
+    });
+    AFRAME.registerComponent('vr-camera-height', {
+      schema: { height: { type: 'number', default: 2.0 } },
+      tick: function () {
+        if (this.el.sceneEl.is('vr-mode')) this.el.object3D.position.y = this.data.height;
+      }
+    });
+  </script>
+  <style>
+    html, body { margin: 0; overflow: hidden; background: #0f1520 !important; min-height: 100vh; }
+    #ui-overlay { position: fixed; top: 0; left: 0; right: 0; padding: 12px; background: rgba(0,0,0,0.6); color: #fff; font-family: system-ui, sans-serif; font-size: 14px; z-index: 100; display: flex; justify-content: space-between; align-items: center; }
+    #emergency-exit { padding: 8px 16px; background: #c00; color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; }
+    #emergency-exit:hover { background: #e00; }
+    a-scene { display: block; width: 100%; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="ui-overlay">
+    <span id="phobia-title">Elige nivel (1–3)</span>
+    <button id="emergency-exit">EMERGENCY EXIT</button>
+  </div>
+
+  <a-scene embedded id="level-scene">
+    <a-entity id="camera-rig" position="0 1.6 0" vr-camera-height="height: 2.0">
+      <a-entity camera look-controls position="0 0 0" cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
+      <a-entity hand-tracking-controls="hand: left; modelStyle: mesh" raycaster="objects: .clickable; far: 5" hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0"></a-entity>
+      <a-entity hand-tracking-controls="hand: right; modelStyle: mesh" raycaster="objects: .clickable; far: 5" hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0"></a-entity>
+    </a-entity>
+
+    <a-entity id="level-content" vr-raise-content="offsetY: 0.8">
+    <a-sky color="#0f1520"></a-sky>
+
+    <!-- Nivel 1–3 y volver (Y más alto para VR) -->
+    <a-entity id="level-1" class="clickable level-card" position="-1.2 2.5 -1.5" data-level="1">
+      <a-plane width="1.4" height="0.8" color="#1a2e1a" position="0 0 0" class="clickable"></a-plane>
+      <a-text value="Nivel 1" anchor="center" align="center" position="0 0.2 0.01" color="#fff" width="1.2"></a-text>
+      <a-text value="Leve" anchor="center" align="center" position="0 0 0.01" color="#8fbc8f" width="1.2"></a-text>
+      <a-text value="Menor intensidad" anchor="center" align="center" position="0 -0.2 0.01" color="#8892a0" width="1.1" font-size="0.18"></a-text>
+    </a-entity>
+
+    <!-- Nivel 2 -->
+    <a-entity id="level-2" class="clickable level-card" position="0 2.5 -1.5" data-level="2">
+      <a-plane width="1.4" height="0.8" color="#2e2a1a" position="0 0 0" class="clickable"></a-plane>
+      <a-text value="Nivel 2" anchor="center" align="center" position="0 0.2 0.01" color="#fff" width="1.2"></a-text>
+      <a-text value="Medio" anchor="center" align="center" position="0 0 0.01" color="#daa520" width="1.2"></a-text>
+      <a-text value="Intensidad media" anchor="center" align="center" position="0 -0.2 0.01" color="#8892a0" width="1.1" font-size="0.18"></a-text>
+    </a-entity>
+
+    <!-- Nivel 3 -->
+    <a-entity id="level-3" class="clickable level-card" position="1.2 2.5 -1.5" data-level="3">
+      <a-plane width="1.4" height="0.8" color="#2e1a1a" position="0 0 0" class="clickable"></a-plane>
+      <a-text value="Nivel 3" anchor="center" align="center" position="0 0.2 0.01" color="#fff" width="1.2"></a-text>
+      <a-text value="Fuerte" anchor="center" align="center" position="0 0 0.01" color="#cd5c5c" width="1.2"></a-text>
+      <a-text value="Mayor intensidad" anchor="center" align="center" position="0 -0.2 0.01" color="#8892a0" width="1.1" font-size="0.18"></a-text>
+    </a-entity>
+
+    <!-- Volver al menú -->
+    <a-entity id="back" class="clickable" position="0 2.0 -1.5">
+      <a-plane width="1.2" height="0.4" color="#2a2a35" position="0 0 0" class="clickable"></a-plane>
+      <a-text value="← Volver al menú" anchor="center" align="center" position="0 0 0.01" color="#8ab4f8" width="1"></a-text>
+    </a-entity>
+
+    <a-light type="ambient" intensity="0.6"></a-light>
+    <a-light type="directional" position="1 1 1" intensity="0.8"></a-light>
+    </a-entity>
+  </a-scene>
+
+  <script src="js/logger.js"></script>
+  <script>
+    document.querySelector('a-scene').addEventListener('loaded', function () {
+      var el = document.querySelector('a-scene');
+      if (el && el.renderer) el.renderer.setClearColor(0x0f1520);
+    });
+    (function () {
+      AFRAME.registerComponent('hand-pose-sync', {
+        tick: function () {
+          var comp = this.el.components['hand-tracking-controls'];
+          if (!comp || !comp.wristObject3D) return;
+          var wrist = comp.wristObject3D;
+          var parent = this.el.parentEl && this.el.parentEl.object3D;
+          if (!parent) return;
+          var THREE = AFRAME.THREE;
+          var pos = this._pos || (this._pos = new THREE.Vector3());
+          var quat = this._quat || (this._quat = new THREE.Quaternion());
+          var parentQuat = this._parentQuat || (this._parentQuat = new THREE.Quaternion());
+          wrist.getWorldPosition(pos);
+          parent.worldToLocal(pos);
+          this.el.object3D.position.copy(pos);
+          wrist.getWorldQuaternion(quat);
+          parent.getWorldQuaternion(parentQuat);
+          this.el.object3D.quaternion.copy(quat).premultiply(parentQuat.clone().invert());
+        }
+      });
+
+      AFRAME.registerComponent('hand-pinch-cursor', {
+        init: function () {
+          var self = this;
+          this.el.addEventListener('pinchended', function () {
+            var raycaster = self.el.components.raycaster;
+            if (!raycaster) return;
+            var els = raycaster.intersectedEls || (raycaster.intersections && raycaster.intersections.length ? [raycaster.intersections[0].object.el].filter(Boolean) : []);
+            var target = els[0];
+            if (!target) return;
+            while (target && !target.classList.contains('clickable')) target = target.parentEl;
+            if (target) target.emit('click');
+          });
+        }
+      });
+
+      AFRAME.registerComponent('hand-laser-visual', {
+        init: function () {
+          var el = this.el;
+          var rayLength = 5;
+          this.rayLength = rayLength;
+          this.lineEl = document.createElement('a-entity');
+          this.lineEl.setAttribute('geometry', 'primitive: cylinder; radius: 0.006; height: ' + rayLength);
+          this.lineEl.setAttribute('material', 'color: #00d4ff; opacity: 0.85; transparent: true');
+          this.lineEl.setAttribute('rotation', '90 0 0');
+          this.lineEl.setAttribute('position', '0 0 ' + (-rayLength / 2));
+          this.cursorEl = document.createElement('a-entity');
+          this.cursorEl.setAttribute('geometry', 'primitive: ring; radiusInner: 0.015; radiusOuter: 0.025');
+          this.cursorEl.setAttribute('material', 'color: #00d4ff; side: double');
+          this.cursorEl.setAttribute('rotation', '90 0 0');
+          this.cursorEl.setAttribute('position', '0 0 -' + rayLength);
+          el.appendChild(this.lineEl);
+          el.appendChild(this.cursorEl);
+        },
+        tick: function () {
+          var raycaster = this.el.components.raycaster;
+          if (!raycaster) return;
+          var dist = this.rayLength;
+          if (raycaster.intersections && raycaster.intersections.length > 0 && raycaster.intersections[0].distance !== undefined) {
+            dist = Math.min(raycaster.intersections[0].distance, this.rayLength);
+          }
+          this.lineEl.setAttribute('geometry', 'primitive: cylinder; radius: 0.006; height: ' + dist);
+          this.lineEl.setAttribute('position', '0 0 ' + (-dist / 2));
+          this.cursorEl.setAttribute('position', '0 0 -' + dist);
+        }
+      });
+    })();
+    var phobiaId = sessionStorage.getItem('vr_phobia_id');
+    var phobiaName = sessionStorage.getItem('vr_phobia_name');
+    if (!phobiaId) {
+      window.location.href = 'menu.html';
+      throw new Error('No phobia selected');
+    }
+    document.getElementById('phobia-title').textContent = phobiaName + ' — Elige nivel (1–3)';
+
+    document.getElementById('emergency-exit').addEventListener('click', function () {
+      if (window.VRPhobiaLogger) VRPhobiaLogger.emergencyExit(phobiaId, null, 'user_triggered');
+      window.location.href = 'index.html';
+    });
+
+    document.querySelectorAll('.level-card').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var level = parseInt(el.getAttribute('data-level'), 10);
+        var videoId = phobiaId + '_level' + level;
+        if (window.VRPhobiaLogger) VRPhobiaLogger.levelSelected(phobiaId, level, videoId);
+        sessionStorage.setItem('vr_level', level);
+        sessionStorage.setItem('vr_video_id', videoId);
+        window.location.href = 'player.html';
+      });
+    });
+
+    document.getElementById('back').addEventListener('click', function () {
+      window.location.href = 'menu.html';
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "vr-atr-phobias",
+  "private": true,
+  "scripts": {
+    "serve": "node server-https.js",
+    "cert": "node generate-cert.js",
+    "serve:http": "npx --yes http-server -p 8080 -c-1",
+    "serve:https": "npx --yes http-server -p 8443 -S -c-1"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1",
+    "selfsigned": "^2.4.1"
+  }
+}

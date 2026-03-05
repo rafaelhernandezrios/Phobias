@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VR Phobia Exposure — Consent</title>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, sans-serif; background: #0f0f14; color: #e0e0e0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; }
+    .card { max-width: 520px; background: #1a1a22; border-radius: 16px; padding: 2rem; border: 1px solid #2a2a35; }
+    h1 { font-size: 1.5rem; margin-top: 0; color: #fff; }
+    p { line-height: 1.6; color: #b0b0b8; }
+    .disclaimer { background: #252530; padding: 1rem; border-radius: 8px; margin: 1rem 0; font-size: 0.95rem; }
+    .buttons { display: flex; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
+    .btn { padding: 0.85rem 1.5rem; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; border: none; transition: transform 0.15s, box-shadow 0.15s; }
+    .btn-primary { background: #4a7cff; color: #fff; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(74, 124, 255, 0.4); }
+    .btn-outline { background: transparent; color: #8a8a9a; border: 1px solid #3a3a48; }
+    .btn-outline:hover { color: #fff; border-color: #5a5a6a; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>WebVR Phobia Exposure + EEG Adaptive Levels</h1>
+    <p>Experiencia de exposición gradual en realidad virtual para apoyo en investigación. Debes estar en un entorno seguro y sentado si usas visor VR.</p>
+    <div class="disclaimer">
+      <strong>Importante:</strong> Esta experiencia puede ser intensa. Contiene escenas relacionadas con fobias (arañas, espacios cerrados, alturas, serpientes, insectos). Puedes detener la experiencia en cualquier momento con el botón <strong>EMERGENCY EXIT</strong>.
+    </div>
+    <p>Al continuar, aceptas participar con conocimiento de lo anterior y que los datos de uso pueden registrarse con fines de investigación.</p>
+    <div class="buttons">
+      <button type="button" class="btn btn-primary" id="btn-accept">Acepto y entrar al menú VR</button>
+      <button type="button" class="btn btn-outline" id="btn-decline">Salir</button>
+    </div>
+  </div>
+
+  <script src="js/logger.js"></script>
+  <script>
+    VRPhobiaLogger.init();
+    VRPhobiaLogger.sessionStart();
+
+    document.getElementById('btn-accept').addEventListener('click', function () {
+      VRPhobiaLogger.consentAccepted();
+      window.location.href = 'menu.html';
+    });
+
+    document.getElementById('btn-decline').addEventListener('click', function () {
+      VRPhobiaLogger.sessionEnd();
+      window.close();
+      // Fallback si no puede cerrar ventana
+      document.querySelector('.card').innerHTML = '<p style="text-align:center">Has salido. Puedes cerrar esta pestaña.</p>';
+    });
+  </script>
+</body>
+</html>

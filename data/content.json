@@ -1,0 +1,146 @@
+{
+  "baseline": {
+    "id": "baseline",
+    "name": "Escena neutral",
+    "description": "Escena tranquila para calibración y baseline EEG.",
+    "video_url_360": "assets/videos/baseline.mp4",
+    "duration_seconds": 60
+  },
+  "phobias": [
+    {
+      "id": "arachnophobia",
+      "name": "Arachnophobia",
+      "name_es": "Aracnofobia",
+      "description": "Miedo a las arañas",
+      "thumbnail": "assets/thumbnails/arachnophobia.jpg",
+      "levels": [
+        {
+          "level_number": 1,
+          "video_url_360": "assets/videos/arachnophobia_level1.mp4",
+          "intensity_tags": ["leve", "distancia", "ambiente neutro"],
+          "duration_seconds": 90
+        },
+        {
+          "level_number": 2,
+          "video_url_360": "assets/videos/arachnophobia_level2.mp4",
+          "intensity_tags": ["medio", "más grande", "movimiento lento"],
+          "duration_seconds": 90
+        },
+        {
+          "level_number": 3,
+          "video_url_360": "assets/videos/arachnophobia_level3.mp4",
+          "intensity_tags": ["fuerte", "muy cerca", "múltiples"],
+          "duration_seconds": 90
+        }
+      ]
+    },
+    {
+      "id": "claustrophobia",
+      "name": "Claustrophobia",
+      "name_es": "Claustrofobia",
+      "description": "Miedo a espacios cerrados",
+      "thumbnail": "assets/thumbnails/claustrophobia.jpg",
+      "levels": [
+        {
+          "level_number": 1,
+          "video_url_360": "assets/videos/claustrophobia_level1.mp4",
+          "intensity_tags": ["habitación pequeña"],
+          "duration_seconds": 90
+        },
+        {
+          "level_number": 2,
+          "video_url_360": "assets/videos/claustrophobia_level2.mp4",
+          "intensity_tags": ["ascensor", "espacio reducido"],
+          "duration_seconds": 90
+        },
+        {
+          "level_number": 3,
+          "video_url_360": "assets/videos/claustrophobia_level3.mp4",
+          "intensity_tags": ["túnel", "paredes acercándose"],
+          "duration_seconds": 90
+        }
+      ]
+    },
+    {
+      "id": "acrophobia",
+      "name": "Acrophobia",
+      "name_es": "Acrofobia",
+      "description": "Miedo a las alturas",
+      "thumbnail": "assets/thumbnails/acrophobia.jpg",
+      "levels": [
+        {
+          "level_number": 1,
+          "video_url_360": "assets/videos/acrophobia_level1.mp4",
+          "intensity_tags": ["balcón bajo"],
+          "duration_seconds": 90
+        },
+        {
+          "level_number": 2,
+          "video_url_360": "assets/videos/acrophobia_level2.mp4",
+          "intensity_tags": ["edificio alto"],
+          "duration_seconds": 90
+        },
+        {
+          "level_number": 3,
+          "video_url_360": "assets/videos/acrophobia_level3.mp4",
+          "intensity_tags": ["borde rascacielos", "puente"],
+          "duration_seconds": 90
+        }
+      ]
+    },
+    {
+      "id": "ophidiophobia",
+      "name": "Ophidiophobia",
+      "name_es": "Ofidiofobia",
+      "description": "Miedo a las serpientes",
+      "thumbnail": "assets/thumbnails/ophidiophobia.jpg",
+      "levels": [
+        {
+          "level_number": 1,
+          "video_url_360": "assets/videos/ophidiophobia_level1.mp4",
+          "intensity_tags": ["serpiente a distancia"],
+          "duration_seconds": 90
+        },
+        {
+          "level_number": 2,
+          "video_url_360": "assets/videos/ophidiophobia_level2.mp4",
+          "intensity_tags": ["serpiente moviéndose cerca"],
+          "duration_seconds": 90
+        },
+        {
+          "level_number": 3,
+          "video_url_360": "assets/videos/ophidiophobia_level3.mp4",
+          "intensity_tags": ["serpiente acercándose"],
+          "duration_seconds": 90
+        }
+      ]
+    },
+    {
+      "id": "entomophobia",
+      "name": "Entomophobia",
+      "name_es": "Entomofobia",
+      "description": "Miedo a insectos",
+      "thumbnail": "assets/thumbnails/entomophobia.jpg",
+      "levels": [
+        {
+          "level_number": 1,
+          "video_url_360": "assets/videos/entomophobia_level1.mp4",
+          "intensity_tags": ["un insecto pequeño"],
+          "duration_seconds": 90
+        },
+        {
+          "level_number": 2,
+          "video_url_360": "assets/videos/entomophobia_level2.mp4",
+          "intensity_tags": ["varios insectos"],
+          "duration_seconds": 90
+        },
+        {
+          "level_number": 3,
+          "video_url_360": "assets/videos/entomophobia_level3.mp4",
+          "intensity_tags": ["enjambre", "muchos cerca"],
+          "duration_seconds": 90
+        }
+      ]
+    }
+  ]
+}
