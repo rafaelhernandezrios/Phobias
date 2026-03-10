@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VR Phobia Exposure — Menú principal</title>
+  <title>VR Phobia Exposure — Main Menu</title>
   <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
   <script>
     AFRAME.registerComponent('vr-raise-content', {
@@ -21,37 +21,125 @@
         if (this.el.sceneEl.is('vr-mode')) this.el.object3D.position.y = this.data.height;
       }
     });
+    AFRAME.registerComponent('vr-world-offset', {
+      schema: { offsetY: { type: 'number', default: -1.5 } },
+      init: function () {
+        var self = this;
+        this.el.sceneEl.addEventListener('enter-vr', function () { self.el.setAttribute('position', '0 ' + self.data.offsetY + ' 0'); });
+        this.el.sceneEl.addEventListener('exit-vr', function () { self.el.setAttribute('position', '0 0 0'); });
+      }
+    });
   </script>
+  <link rel="stylesheet" href="css/shared.css" />
   <style>
-    html, body { margin: 0; overflow: hidden; background: #0f1520 !important; min-height: 100vh; }
-    #ui-overlay { position: fixed; top: 0; left: 0; right: 0; padding: 12px; background: rgba(0,0,0,0.6); color: #fff; font-family: system-ui, sans-serif; font-size: 14px; z-index: 100; display: flex; justify-content: space-between; align-items: center; }
-    #emergency-exit { padding: 8px 16px; background: #c00; color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; }
-    #emergency-exit:hover { background: #e00; }
+    html, body { margin: 0; overflow: hidden; background: var(--bg-dark) !important; min-height: 100vh; }
+    #ui-overlay {
+      position: fixed; top: 0; left: 0; right: 0; padding: 12px 16px;
+      background: rgba(10, 14, 20, 0.92); backdrop-filter: blur(12px);
+      color: var(--text-primary); font-size: 14px; z-index: 100;
+      display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    #ui-overlay span { color: var(--text-secondary); }
+    #emergency-exit { padding: 8px 16px; background: var(--accent-danger); color: #fff; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; transition: background 0.15s; }
+    #emergency-exit:hover { background: var(--accent-danger-hover); }
+    #toggle-2d { padding: 6px 12px; background: transparent; color: var(--accent-primary); border: 1px solid var(--accent-primary); border-radius: 8px; cursor: pointer; font-size: 13px; margin-right: 8px; }
+    #toggle-2d:hover { background: rgba(91, 156, 245, 0.15); }
     a-scene { display: block; width: 100%; height: 100vh; }
+    /* Modo 2D: grid de tarjetas para desktop */
+    #menu-2d {
+      display: none; position: fixed; inset: 0; z-index: 200;
+      background: var(--bg-dark); padding: 80px 24px 24px;
+      overflow-y: auto;
+    }
+    #menu-2d.active { display: block; }
+    #menu-2d .grid {
+      max-width: 900px; margin: 0 auto;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 16px; justify-content: center;
+    }
+    #menu-2d .phobia-card-2d {
+      background: var(--bg-card); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg); padding: 20px;
+      cursor: pointer; transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+      text-align: center;
+    }
+    #menu-2d .phobia-card-2d:hover {
+      transform: translateY(-4px); border-color: var(--accent-primary);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    #menu-2d .phobia-card-2d h3 { margin: 0 0 4px; font-size: 1rem; color: var(--text-primary); }
+    #menu-2d .phobia-card-2d .name-es { color: var(--accent-primary); font-size: 0.9rem; }
+    #menu-2d .phobia-card-2d .desc { color: var(--text-muted); font-size: 0.8rem; margin-top: 4px; }
+    #menu-2d .hint { text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 24px; }
+    #video-hud { display: none; position: fixed; bottom: 0; left: 0; right: 0; padding: 12px 16px; background: rgba(10,14,20,0.95); color: var(--text-primary); font-size: 14px; z-index: 150; border-top: 1px solid var(--border-subtle); }
+    #video-hud.active { display: block; }
+    #video-hud .hud-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
+    #video-hud .hud-btn { padding: 8px 14px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer; color: #fff; }
+    #video-hud .hud-btn-play { background: var(--accent-success); }
+    #video-hud .hud-btn-pause { background: var(--accent-warning); color: #1a1a22; }
+    #video-hud .hud-btn-menu { background: var(--border-hover); color: var(--text-primary); }
+    #video-hud #emergency-exit-video { background: var(--accent-danger); }
+    #video-hud #video-status.ready { color: var(--accent-success); }
   </style>
 </head>
 <body>
   <div id="ui-overlay">
-    <span>Elige una fobia — Menú VR</span>
-    <button id="emergency-exit">EMERGENCY EXIT</button>
+    <span id="ui-title">Choose a phobia / 恐怖症を選択</span>
+    <div>
+      <button id="toggle-2d" type="button">Simple menu / シンプルメニュー</button>
+      <button id="emergency-exit" class="btn-emergency">EMERGENCY EXIT / 緊急終了</button>
+    </div>
   </div>
 
-  <a-scene embedded id="menu-scene">
+  <!-- Modo 2D: grid clicable para usuarios sin VR -->
+  <div id="menu-2d">
+    <p style="text-align: center; margin-bottom: 16px;">
+      <a href="experiment.html" class="btn btn-primary" style="display: inline-block; text-decoration: none;">Start EEG experiment / 実験モード</a>
+    </p>
+    <div class="grid" id="phobia-grid-2d"></div>
+    <p class="hint">Click a phobia to choose intensity level. You can also use VR mode for an immersive experience.<br>恐怖症をクリックして強度レベルを選択。VRモードで没入体験も可能。</p>
+  </div>
+
+  <div id="video-hud">
+    <div class="hud-row">
+      <span id="video-status">Loading… / 読み込み中…</span>
+      <div>
+        <button class="hud-btn hud-btn-play" id="btn-video-play">▶ Play / 再生</button>
+        <button class="hud-btn hud-btn-pause" id="btn-video-pause" style="display:none">⏸ Pause / 一時停止</button>
+        <button class="hud-btn hud-btn-menu" id="btn-video-menu">← Menu / メニュー</button>
+        <button class="hud-btn" id="emergency-exit-video">EMERGENCY EXIT / 緊急終了</button>
+      </div>
+    </div>
+  </div>
+
+  <video id="video360" loop="false" preload="auto" playsinline muted style="display:none"></video>
+
+  <a-scene embedded id="menu-scene" vr-hover-scale="camera: #cam" fog="type: linear; color: #0a0e14; near: 4; far: 20">
     <a-assets>
       <img id="tex-card" src="https://cdn.aframe.io/aframe/examples/ui/rounded-rect.png" crossorigin="anonymous" />
     </a-assets>
 
     <a-entity id="camera-rig" position="0 1.6 0" vr-camera-height="height: 2.0">
-      <a-entity camera look-controls wasd-controls position="0 0 0" cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
+      <a-entity id="cam" camera look-controls wasd-controls position="0 0 0"
+        cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
       <a-entity hand-tracking-controls="hand: left; modelStyle: mesh" raycaster="objects: .clickable; far: 5" hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0"></a-entity>
       <a-entity hand-tracking-controls="hand: right; modelStyle: mesh" raycaster="objects: .clickable; far: 5" hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0"></a-entity>
     </a-entity>
 
     <a-entity id="menu-content" vr-raise-content="offsetY: 0.8">
-    <!-- Sky neutro -->
-    <a-sky color="#0f1520"></a-sky>
+    <!-- Sky + subtle gradient feel via fog -->
+    <a-sky color="#0a0e14"></a-sky>
 
-    <!-- 5 tarjetas flotantes: fobias (Y alto para VR sentado/de pie) -->
+    <!-- Floor reference (optional, adds depth) -->
+    <a-circle position="0 0 -3" radius="4" color="#0d1117" opacity="0.4" material="side: double; transparent: true"></a-circle>
+
+    <!-- Instruction text (VR) -->
+    <a-entity position="0 2.85 -1.8" rotation="0 0 0">
+      <a-text value="Look at a card — wait for ring to fill or click / カードを見て円が満たされるまで待つかクリック" anchor="center" align="center" width="3.5" color="#6b7280" font-size="0.18"></a-text>
+    </a-entity>
+
+    <!-- 5 cards: estructura simple (1 plano) como en versión que funcionaba -->
     <a-entity id="card-arachnophobia" class="clickable phobia-card" position="-2 2.5 -2" data-phobia-id="arachnophobia" data-phobia-name="Arachnophobia">
       <a-plane width="1.2" height="0.7" color="#1a2332" position="0 0 0" class="clickable"></a-plane>
       <a-text value="Arachnophobia" anchor="center" align="center" position="0 0.15 0.01" color="#fff" width="1.1"></a-text>
@@ -87,20 +175,69 @@
       <a-text value="Miedo a insectos" anchor="center" align="center" position="0 -0.15 0.01" color="#8892a0" width="1" font-size="0.16"></a-text>
     </a-entity>
 
-    <a-light type="ambient" intensity="0.6"></a-light>
-    <a-light type="directional" position="1 1 1" intensity="0.8"></a-light>
+    <a-light type="ambient" intensity="0.5"></a-light>
+    <a-light type="directional" position="2 3 2" intensity="0.9" castShadow="true"></a-light>
+    <a-light type="point" position="-2 2 -1" intensity="0.3" color="#5b9cf5"></a-light>
+    </a-entity>
+
+    <!-- Level selector (mismo escenario, sin recargar = VR se mantiene) -->
+    <a-entity id="level-content" vr-raise-content="offsetY: 0.8" visible="false">
+    <a-sky color="#0a0e14"></a-sky>
+    <a-circle position="0 0 -2" radius="3" color="#0d1117" opacity="0.4" material="side: double; transparent: true"></a-circle>
+    <a-entity position="0 2.9 -1.2">
+      <a-text value="Choose level — click or pinch / レベルを選択" anchor="center" align="center" width="2.8" color="#6b7280" font-size="0.16"></a-text>
+    </a-entity>
+    <a-entity id="level-1" class="clickable level-card" position="-1.2 2.5 -1.5" data-level="1">
+      <a-plane width="1.48" height="0.88" color="#0d1117" position="0 0 -0.01" class="clickable"></a-plane>
+      <a-plane width="1.4" height="0.8" color="#1a2e1a" position="0 0 0" class="clickable"></a-plane>
+      <a-text value="Level 1" anchor="center" align="center" position="0 0.14 0.01" color="#fff" width="1.2" font-size="0.28"></a-text>
+      <a-text value="Mild" anchor="center" align="center" position="0 -0.14 0.01" color="#8fbc8f" width="1.1" font-size="0.2"></a-text>
+    </a-entity>
+    <a-entity id="level-2" class="clickable level-card" position="0 2.5 -1.5" data-level="2">
+      <a-plane width="1.48" height="0.88" color="#0d1117" position="0 0 -0.01" class="clickable"></a-plane>
+      <a-plane width="1.4" height="0.8" color="#2e2a1a" position="0 0 0" class="clickable"></a-plane>
+      <a-text value="Level 2" anchor="center" align="center" position="0 0.14 0.01" color="#fff" width="1.2" font-size="0.28"></a-text>
+      <a-text value="Medium" anchor="center" align="center" position="0 -0.14 0.01" color="#daa520" width="1.1" font-size="0.2"></a-text>
+    </a-entity>
+    <a-entity id="level-3" class="clickable level-card" position="1.2 2.5 -1.5" data-level="3">
+      <a-plane width="1.48" height="0.88" color="#0d1117" position="0 0 -0.01" class="clickable"></a-plane>
+      <a-plane width="1.4" height="0.8" color="#2e1a1a" position="0 0 0" class="clickable"></a-plane>
+      <a-text value="Level 3" anchor="center" align="center" position="0 0.14 0.01" color="#fff" width="1.2" font-size="0.28"></a-text>
+      <a-text value="Strong" anchor="center" align="center" position="0 -0.14 0.01" color="#cd5c5c" width="1.1" font-size="0.2"></a-text>
+    </a-entity>
+    <a-entity id="back" class="clickable vr-back-btn" position="0 2.0 -1.5">
+      <a-plane width="1.28" height="0.48" color="#0d1117" position="0 0 -0.01" class="clickable"></a-plane>
+      <a-plane width="1.2" height="0.4" color="#2a2a35" position="0 0 0" class="clickable"></a-plane>
+      <a-text value="Back to menu" anchor="center" align="center" position="0 0 0.01" color="#8ab4f8" width="1"></a-text>
+    </a-entity>
+    <a-light type="ambient" intensity="0.5"></a-light>
+    <a-light type="directional" position="2 3 2" intensity="0.9"></a-light>
+    <a-light type="point" position="0 2 -1" intensity="0.25" color="#5b9cf5"></a-light>
+    </a-entity>
+
+    <!-- Video 360 (mismo escenario = VR se mantiene) -->
+    <a-entity id="video-content" visible="false">
+      <a-entity vr-world-offset="offsetY: -1.5">
+        <a-videosphere id="videosphere" radius="500" rotation="0 -90 0" material="side: back; color: #111" video-texture-embed="videoId: video360"></a-videosphere>
+        <a-light type="ambient" intensity="0.3"></a-light>
+      </a-entity>
     </a-entity>
   </a-scene>
 
+  <script src="js/vr-ui.js"></script>
   <script src="js/app-base.js"></script>
   <script src="js/logger.js"></script>
   <script>
     document.querySelector('a-scene').addEventListener('loaded', function () {
       var el = document.querySelector('a-scene');
-      if (el && el.renderer) el.renderer.setClearColor(0x0f1520);
+      if (el && el.renderer) el.renderer.setClearColor(0x0a0e14);
+      if (sessionStorage.getItem('vr_was_active') === '1') {
+        sessionStorage.removeItem('vr_was_active');
+        if (el && el.enterVR) setTimeout(function () { el.enterVR(); }, 400);
+      }
     });
     (function () {
-      // Sincroniza el entity con la muñeca para que el raycaster salga desde la mano (hand-tracking-controls deja el entity en 0,0,0).
+      // Sincroniza el entity con la muñeca para que el raycaster salga desde la mano
       AFRAME.registerComponent('hand-pose-sync', {
         tick: function () {
           var comp = this.el.components['hand-tracking-controls'];
@@ -172,27 +309,221 @@
       window.location.href = 'index.html';
     });
 
-    document.querySelectorAll('.phobia-card').forEach(function (el) {
-      el.addEventListener('click', function () {
-        var id = el.getAttribute('data-phobia-id');
-        var name = el.getAttribute('data-phobia-name');
-        if (window.VRPhobiaLogger) VRPhobiaLogger.phobiaSelected(id, name);
-        try {
-          sessionStorage.setItem('vr_phobia_id', id);
-          sessionStorage.setItem('vr_phobia_name', name);
-        } catch (e) {}
-        window.location.href = 'level-select.html';
-      });
+    // Toggle modo 2D / VR — en desktop ancho, mostrar 2D por defecto (más fácil)
+    var menu2d = document.getElementById('menu-2d');
+    var toggle2d = document.getElementById('toggle-2d');
+    var scene = document.querySelector('a-scene');
+    var is2DActive = function () { return menu2d.classList.contains('active'); };
+    var show2D = function () {
+      menu2d.classList.add('active');
+      toggle2d.textContent = 'View in VR / VRで表示';
+      if (scene) scene.style.display = 'none';
+    };
+    var showVR = function () {
+      menu2d.classList.remove('active');
+      toggle2d.textContent = 'Simple menu / シンプルメニュー';
+      if (scene) scene.style.display = 'block';
+    };
+    if (sessionStorage.getItem('vr_was_active') === '1') {
+      showVR();
+    } else if (window.innerWidth >= 768) {
+      show2D();
+    } else {
+      showVR();
+    }
+    toggle2d.addEventListener('click', function () {
+      if (is2DActive()) { showVR(); } else { show2D(); }
     });
 
-    // Cargar thumbnails: reemplazar material por completo para evitar capa gris (A-Frame no sobrescribe)
+    // Poblar grid 2D desde content.json
+    fetch(typeof assetUrl === 'function' ? assetUrl('data/content.json') : 'data/content.json')
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        var grid = document.getElementById('phobia-grid-2d');
+        if (!grid || !data.phobias) return;
+        data.phobias.forEach(function (p) {
+          var card = document.createElement('div');
+          card.className = 'phobia-card-2d';
+          card.setAttribute('data-phobia-id', p.id);
+          var names = { arachnophobia: 'Arachnophobia / クモ恐怖症', claustrophobia: 'Claustrophobia / 閉所恐怖症', acrophobia: 'Acrophobia / 高所恐怖症', ophidiophobia: 'Ophidiophobia / 蛇恐怖症', entomophobia: 'Entomophobia / 昆虫恐怖症' };
+          var descs = { arachnophobia: 'Fear of spiders / クモへの恐怖', claustrophobia: 'Enclosed spaces / 閉所への恐怖', acrophobia: 'Fear of heights / 高所への恐怖', ophidiophobia: 'Fear of snakes / ヘビへの恐怖', entomophobia: 'Fear of insects / 昆虫への恐怖' };
+          card.innerHTML = '<h3>' + (names[p.id] || p.name || p.id) + '</h3><div class="name-es">' + (descs[p.id] || p.description || '') + '</div>';
+          card.addEventListener('click', function () {
+            var id = card.getAttribute('data-phobia-id');
+            var name = (data.phobias.find(function (x) { return x.id === id; }) || {}).name || id;
+            if (window.VRPhobiaLogger) VRPhobiaLogger.phobiaSelected(id, name);
+            try {
+              sessionStorage.setItem('vr_phobia_id', id);
+              sessionStorage.setItem('vr_phobia_name', name);
+            } catch (e) {}
+            window.location.href = 'level-select.html';
+          });
+          grid.appendChild(card);
+        });
+      })
+      .catch(function () {});
+
+    var menuContent = document.getElementById('menu-content');
+    var levelContent = document.getElementById('level-content');
+    var videoContent = document.getElementById('video-content');
+    var videoHud = document.getElementById('video-hud');
+    var videoEl = document.getElementById('video360');
+    var videoStatusEl = document.getElementById('video-status');
+    var uiTitle = document.getElementById('ui-title');
+
+    var levelPanelShownAt = 0;
+    function showLevelPanel(phobiaId, phobiaName) {
+      try { sessionStorage.setItem('vr_phobia_id', phobiaId); sessionStorage.setItem('vr_phobia_name', phobiaName); } catch (e) {}
+      if (menuContent) menuContent.setAttribute('visible', false);
+      if (levelContent) levelContent.setAttribute('visible', true);
+      if (videoContent) videoContent.setAttribute('visible', false);
+      if (videoHud) videoHud.classList.remove('active');
+      if (uiTitle) { uiTitle.style.display = ''; uiTitle.textContent = (phobiaName || phobiaId) + ' — Choose level (1–3) / レベル選択'; }
+      levelPanelShownAt = Date.now();
+    }
+    function showMenuPanel() {
+      if (menuContent) menuContent.setAttribute('visible', true);
+      if (levelContent) levelContent.setAttribute('visible', false);
+      if (videoContent) videoContent.setAttribute('visible', false);
+      if (videoHud) videoHud.classList.remove('active');
+      if (uiTitle) { uiTitle.style.display = ''; uiTitle.textContent = 'Choose a phobia / 恐怖症を選択'; }
+    }
+
+    if (!AFRAME.components['video-texture-embed']) {
+    AFRAME.registerComponent('video-texture-embed', {
+      schema: { videoId: { default: 'video360' } },
+      _lastTime: -1,
+      tick: function () {
+        var video = document.getElementById(this.data.videoId);
+        var mesh = this.el.getObject3D('mesh');
+        if (mesh && mesh.material && mesh.material.map && video && !video.paused) {
+          var t = video.currentTime;
+          if (t !== this._lastTime) { this._lastTime = t; mesh.material.map.needsUpdate = true; }
+        }
+        if (window._embedTextureApplied && !window._embedForceReapply) return;
+        if (!video || video.readyState < 2) return;
+        if (!mesh) return;
+        var THREE = AFRAME.THREE;
+        if (!THREE) return;
+        var tex = new THREE.VideoTexture(video);
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+        try { if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding; } catch (e) {}
+        var mat = new THREE.MeshBasicMaterial({ map: tex, color: 0xffffff, side: THREE.BackSide, depthWrite: true, depthTest: true });
+        if (mesh.material && mesh.material.dispose) mesh.material.dispose();
+        mesh.material = mat;
+        window._embedTextureApplied = true;
+        window._embedForceReapply = false;
+        if (videoStatusEl) { videoStatusEl.textContent = 'Press Play / 再生をクリック'; videoStatusEl.classList.add('ready'); }
+        video.play().catch(function () {});
+      }
+    });
+    }
+
+    function showVideoPanel(phobiaId, phobiaName, level, videoId) {
+      if (levelContent) levelContent.setAttribute('visible', false);
+      if (videoContent) videoContent.setAttribute('visible', true);
+      if (videoHud) videoHud.classList.add('active');
+      if (uiTitle) uiTitle.style.display = 'none';
+      window._embedTextureApplied = false;
+      window._embedForceReapply = true;
+      if (videoStatusEl) { videoStatusEl.textContent = 'Loading… / 読み込み中…'; videoStatusEl.classList.remove('ready'); }
+      var dataUrl = typeof assetUrl === 'function' ? assetUrl('data/content.json') : 'data/content.json';
+      fetch(dataUrl).then(function (r) { return r.json(); }).then(function (data) {
+        var phobia = data.phobias && data.phobias.find(function (p) { return p.id === phobiaId; });
+        var lvl = phobia && phobia.levels && phobia.levels.find(function (l) { return l.level_number === level; });
+        var url = lvl ? lvl.video_url_360 : null;
+        var fullUrl = url ? (typeof assetUrl === 'function' ? assetUrl(url) : url) : 'assets/videos/baseline.mp4';
+        videoEl.setAttribute('src', fullUrl);
+        videoEl.muted = true;
+        videoEl.load();
+        videoEl.addEventListener('error', function () { if (videoStatusEl) videoStatusEl.textContent = 'Error / エラー'; });
+        function playWhenReady() {
+          videoEl.removeEventListener('canplay', playWhenReady);
+          videoEl.removeEventListener('loadeddata', playWhenReady);
+          window._embedForceReapply = true;
+          videoEl.play().catch(function () {});
+        }
+        videoEl.addEventListener('canplay', playWhenReady);
+        videoEl.addEventListener('loadeddata', playWhenReady);
+        if (videoEl.readyState >= 2) playWhenReady();
+      }).catch(function () { if (videoStatusEl) videoStatusEl.textContent = 'Error / エラー'; });
+      if (scene && scene.is && scene.is('vr-mode') && videoEl.readyState >= 2) {
+        window._embedForceReapply = true;
+        videoEl.play().catch(function () {});
+      }
+    }
+
+    document.getElementById('btn-video-play').addEventListener('click', function () {
+      if (videoEl) { videoEl.muted = false; videoEl.play(); }
+      document.getElementById('btn-video-play').style.display = 'none';
+      document.getElementById('btn-video-pause').style.display = 'inline-block';
+    });
+    document.getElementById('btn-video-pause').addEventListener('click', function () {
+      if (videoEl) videoEl.pause();
+      document.getElementById('btn-video-play').style.display = 'inline-block';
+      document.getElementById('btn-video-pause').style.display = 'none';
+    });
+    document.getElementById('btn-video-menu').addEventListener('click', function () {
+      if (videoEl) videoEl.pause();
+      showLevelPanel(sessionStorage.getItem('vr_phobia_id'), sessionStorage.getItem('vr_phobia_name'));
+    });
+    document.getElementById('emergency-exit-video').addEventListener('click', function () {
+      if (videoEl) videoEl.pause();
+      if (window.VRPhobiaLogger) VRPhobiaLogger.emergencyExit(null, null, 'user_triggered');
+      window.location.href = 'index.html';
+    });
+
+    function onPhobiaCardClick() {
+      var card = this;
+      while (card && !card.classList.contains('phobia-card')) card = card.parentEl;
+      if (!card) return;
+      var id = card.getAttribute('data-phobia-id');
+      var name = card.getAttribute('data-phobia-name');
+      if (window.VRPhobiaLogger) VRPhobiaLogger.phobiaSelected(id, name);
+      showLevelPanel(id, name);
+    }
+    function onLevelCardClick() {
+      if (Date.now() - levelPanelShownAt < 500) return;
+      var card = this;
+      while (card && !card.classList.contains('level-card')) card = card.parentEl;
+      if (!card) return;
+      var level = parseInt(card.getAttribute('data-level'), 10);
+      var phobiaId = sessionStorage.getItem('vr_phobia_id');
+      var videoId = (phobiaId || '') + '_level' + level;
+      if (window.VRPhobiaLogger) VRPhobiaLogger.levelSelected(phobiaId, level, videoId);
+      try {
+        sessionStorage.setItem('vr_level', level);
+        sessionStorage.setItem('vr_video_id', videoId);
+      } catch (e) {}
+      showVideoPanel(phobiaId, sessionStorage.getItem('vr_phobia_name'), level, videoId);
+    }
+    function onBackClick() {
+      var btn = this;
+      while (btn && !btn.classList.contains('vr-back-btn')) btn = btn.parentEl;
+      if (btn) showMenuPanel();
+    }
+
+    document.querySelectorAll('.phobia-card').forEach(function (card) {
+      card.addEventListener('click', onPhobiaCardClick);
+      card.querySelectorAll('.clickable').forEach(function (el) { el.addEventListener('click', onPhobiaCardClick); });
+    });
+    document.querySelectorAll('.level-card').forEach(function (card) {
+      card.addEventListener('click', onLevelCardClick);
+      card.querySelectorAll('.clickable').forEach(function (el) { el.addEventListener('click', onLevelCardClick); });
+    });
+    document.querySelectorAll('.vr-back-btn').forEach(function (btn) {
+      btn.addEventListener('click', onBackClick);
+      btn.querySelectorAll('.clickable').forEach(function (el) { el.addEventListener('click', onBackClick); });
+    });
+
     function applyThumbnailToCard(phobia, scene) {
       var card = document.getElementById('card-' + phobia.id);
       if (!card || !phobia.thumbnail) return;
       var url = typeof assetUrl === 'function' ? assetUrl(phobia.thumbnail) : phobia.thumbnail;
       var plane = card.querySelector('a-plane');
       if (!plane) return;
-
       var retries = 0;
       function setTexture(img) {
         var mesh = plane.getObject3D('mesh');
@@ -220,21 +551,15 @@
         }
         mesh.material = newMat;
       }
-
       var img = new Image();
       img.crossOrigin = 'anonymous';
       img.onload = function () {
         var doApply = function () { setTexture(img); };
-        if (img.decode) {
-          img.decode().then(doApply).catch(doApply);
-        } else {
-          requestAnimationFrame(doApply);
-        }
+        if (img.decode) { img.decode().then(doApply).catch(doApply); } else { requestAnimationFrame(doApply); }
       };
       img.onerror = function () { plane.setAttribute('material', { src: url, color: '#fff' }); };
       img.src = url;
     }
-
     fetch(typeof assetUrl === 'function' ? assetUrl('data/content.json') : 'data/content.json')
       .then(function (res) { return res.json(); })
       .then(function (data) {
@@ -245,11 +570,7 @@
             data.phobias.forEach(function (phobia) { applyThumbnailToCard(phobia, scene); });
           }, 150);
         }
-        if (scene.hasLoaded) {
-          applyAll();
-        } else {
-          scene.addEventListener('loaded', applyAll);
-        }
+        if (scene.hasLoaded) { applyAll(); } else { scene.addEventListener('loaded', applyAll); }
       })
       .catch(function () {});
   </script>

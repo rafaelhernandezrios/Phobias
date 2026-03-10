@@ -5,9 +5,11 @@
     "serve": "node server-https.js",
     "cert": "node generate-cert.js",
     "serve:http": "npx --yes http-server -p 8080 -c-1",
-    "serve:https": "npx --yes http-server -p 8443 -S -c-1"
+    "serve:https": "npx --yes http-server -p 8443 -S -c-1",
+    "experiment": "npx --yes concurrently -n web,recorder -c blue,green \"npm run serve:https\" \"python scripts/aura_recorder.py --wss\""
   },
   "devDependencies": {
+    "concurrently": "^9.0.0",
     "http-server": "^14.1.1",
     "selfsigned": "^2.4.1"
   }

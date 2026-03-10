@@ -15,11 +15,18 @@ VR-ATR Phobias/
 ├── index.html          # Landing / Consent (disclaimer + aceptar)
 ├── menu.html           # Menú VR: 5 tarjetas (fobias)
 ├── level-select.html   # Selección de nivel 1–3 por fobia
-├── player.html         # Reproductor 360° + HUD (play, pause, reiniciar, volver, EMERGENCY EXIT)
+├── player.html         # Reproductor 360° + HUD
+├── experiment.html     # Experimento EEG (niveles automáticos cada 8s)
 ├── data/
 │   └── content.json    # Fobias, niveles, URLs de videos 360
 ├── js/
-│   └── logger.js       # Registro de eventos (session, phobia, level, timestamps, actions)
+│   └── logger.js       # Registro de eventos
+├── scripts/
+│   ├── aura_test.py    # Test del stream AURA
+│   └── aura_recorder.py # LSL + WebSocket → CSV
+├── output/             # CSVs de EEG (generados)
+├── docs/
+│   └── EEG_EXPERIMENT_SETUP.md
 ├── assets/             # Opcional: thumbnails y videos
 │   ├── thumbnails/
 │   └── videos/
@@ -58,6 +65,33 @@ Sin servidor, abrir `index.html` directamente puede fallar al cargar `content.js
 
 - Cada acción (consent, fobia elegida, nivel, inicio/fin de video, pausa, reinicio, salida, emergency exit) se registra con `VRPhobiaLogger`.
 - Los logs se imprimen en consola y se pueden exportar con `VRPhobiaLogger.exportJSON()` o `VRPhobiaLogger.downloadLogs()` (por ejemplo desde la consola del navegador).
+
+## Experimento EEG (AURA)
+
+Modo de experimento que registra EEG mientras el usuario ve videos con cambio automático de niveles cada 8 segundos.
+
+**Requisitos:** AURA emitiendo LSL, Python con `pylsl` y `websockets`.
+
+**Guía completa:** [docs/EEG_EXPERIMENT_SETUP.md](docs/EEG_EXPERIMENT_SETUP.md)
+
+**Resumen rápido (HTTPS + VR):**
+
+```bash
+# Primera vez: certificados
+npm run cert
+
+# Opción A: dos terminales
+# Terminal 1: python scripts/aura_recorder.py --wss
+# Terminal 2: npm run serve:https
+
+# Opción B: una sola terminal
+npm run experiment
+
+# Opción C: doble clic (Windows)
+run-experiment.bat
+```
+
+Abrir `https://127.0.0.1:8443` (o la IP de la PC para VR) → "Start EEG experiment" → elegir fobia. Los CSV se guardan en `output/`.
 
 ## Fase 2 (EEG adaptativo)
 

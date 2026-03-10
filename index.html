@@ -1,36 +1,104 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VR Phobia Exposure — Consent</title>
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  <title>VR Phobia Exposure — Welcome</title>
+  <link rel="stylesheet" href="css/shared.css" />
   <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: system-ui, sans-serif; background: #0f0f14; color: #e0e0e0; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; }
-    .card { max-width: 520px; background: #1a1a22; border-radius: 16px; padding: 2rem; border: 1px solid #2a2a35; }
-    h1 { font-size: 1.5rem; margin-top: 0; color: #fff; }
-    p { line-height: 1.6; color: #b0b0b8; }
-    .disclaimer { background: #252530; padding: 1rem; border-radius: 8px; margin: 1rem 0; font-size: 0.95rem; }
-    .buttons { display: flex; gap: 1rem; margin-top: 1.5rem; flex-wrap: wrap; }
-    .btn { padding: 0.85rem 1.5rem; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; border: none; transition: transform 0.15s, box-shadow 0.15s; }
-    .btn-primary { background: #4a7cff; color: #fff; }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(74, 124, 255, 0.4); }
-    .btn-outline { background: transparent; color: #8a8a9a; border: 1px solid #3a3a48; }
-    .btn-outline:hover { color: #fff; border-color: #5a5a6a; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      text-align: center;
+    }
+    .card {
+      max-width: 540px;
+      width: 100%;
+    }
+    .logo {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+      margin: 0 0 0.5rem;
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      margin-bottom: 1.5rem;
+    }
+    p {
+      line-height: 1.65;
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      margin: 0;
+    }
+    .disclaimer {
+      background: var(--bg-elevated);
+      padding: 1.25rem;
+      border-radius: var(--radius-md);
+      margin: 1.25rem 0;
+      font-size: 0.9rem;
+      text-align: left;
+      border-left: 4px solid var(--accent-warning);
+    }
+    .disclaimer strong {
+      color: var(--text-primary);
+    }
+    .steps {
+      text-align: left;
+      margin: 1.25rem 0;
+      padding-left: 1.25rem;
+    }
+    .steps li {
+      margin-bottom: 0.5rem;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+    .buttons {
+      display: flex;
+      gap: 1rem;
+      margin-top: 1.75rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .btn {
+      min-width: 180px;
+    }
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>WebVR Phobia Exposure + EEG Adaptive Levels</h1>
-    <p>Experiencia de exposición gradual en realidad virtual para apoyo en investigación. Debes estar en un entorno seguro y sentado si usas visor VR.</p>
+    <div class="logo">🌐</div>
+    <h1>VR Phobia Exposure + EEG</h1>
+    <p class="subtitle">Gradual exposure in virtual reality for research support<br>研究支援のためのVR段階的曝露</p>
+    
+    <p>360° gradual exposure experience. Be in a safe place and, if using a VR headset, preferably seated.<br>360°段階的曝露体験。安全な場所で、VRヘッドセット使用時は座った状態を推奨します。</p>
+    
     <div class="disclaimer">
-      <strong>Importante:</strong> Esta experiencia puede ser intensa. Contiene escenas relacionadas con fobias (arañas, espacios cerrados, alturas, serpientes, insectos). Puedes detener la experiencia en cualquier momento con el botón <strong>EMERGENCY EXIT</strong>.
+      <strong>Important / 重要:</strong> This experience can be intense. It contains scenes related to phobias (spiders, enclosed spaces, heights, snakes, insects). You can stop at any time with the <strong>EMERGENCY EXIT</strong> button.<br>この体験は刺激が強い場合があります。恐怖症関連のシーン（クモ、閉所、高所、ヘビ、昆虫）が含まれます。<strong>EMERGENCY EXIT</strong>ボタンでいつでも停止できます。
     </div>
-    <p>Al continuar, aceptas participar con conocimiento de lo anterior y que los datos de uso pueden registrarse con fines de investigación.</p>
+    
+    <p><strong>What will you do? / 何をしますか？</strong></p>
+    <ol class="steps">
+      <li>Choose a phobia from the menu / メニューから恐怖症を選択</li>
+      <li>Select an intensity level (1 = mild, 3 = strong) / 強度レベルを選択（1=軽い、3=強い）</li>
+      <li>Watch an immersive 360° video / 没入型360°動画を視聴</li>
+    </ol>
+    
+    <p>By continuing, you agree to participate with knowledge of the above and that usage data may be recorded for research purposes.<br>続行することで、上記を理解した上で参加し、使用データが研究目的で記録されることに同意したものとみなします。</p>
+    
     <div class="buttons">
-      <button type="button" class="btn btn-primary" id="btn-accept">Acepto y entrar al menú VR</button>
-      <button type="button" class="btn btn-outline" id="btn-decline">Salir</button>
+      <button type="button" class="btn btn-primary" id="btn-accept">Accept and enter / 同意して入る</button>
+      <a href="experiment.html" class="btn btn-outline" style="text-decoration: none;">Start EEG experiment / 実験モード</a>
+      <button type="button" class="btn btn-outline" id="btn-decline">Exit / 終了</button>
     </div>
   </div>
 
@@ -47,8 +115,7 @@
     document.getElementById('btn-decline').addEventListener('click', function () {
       VRPhobiaLogger.sessionEnd();
       window.close();
-      // Fallback si no puede cerrar ventana
-      document.querySelector('.card').innerHTML = '<p style="text-align:center">Has salido. Puedes cerrar esta pestaña.</p>';
+      document.querySelector('.card').innerHTML = '<p style="text-align:center; color: var(--text-secondary)">You have exited. You can close this tab.<br>終了しました。このタブを閉じてください。</p>';
     });
   </script>
 </body>

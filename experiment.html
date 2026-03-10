@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VR Phobia Exposure — EEG Experiment</title>
+  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+  <script>
+    AFRAME.registerComponent('vr-camera-height', {
+      schema: { minHeight: { type: 'number', default: 1.5 } },
+      tick: function () {
+        if (!this.el.sceneEl.is('vr-mode')) return;
+        var y = this.el.object3D.position.y;
+        if (y < this.data.minHeight) this.el.object3D.position.y = this.data.minHeight;
+      }
+    });
+    AFRAME.registerComponent('vr-world-offset', {
+      schema: { offsetY: { type: 'number', default: -1.7 } },
+      init: function () {
+        var self = this;
+        this.el.sceneEl.addEventListener('enter-vr', function () {
+          self.el.setAttribute('position', '0 ' + self.data.offsetY + ' 0');
+        });
+        this.el.sceneEl.addEventListener('exit-vr', function () {
+          self.el.setAttribute('position', '0 0 0');
+        });
+      }
+    });
+  </script>
+  <link rel="stylesheet" href="css/shared.css" />
+  <style>
+    html, body { margin: 0; overflow: hidden; background: var(--bg-dark) !important; }
+    body { min-height: 100vh; }
+    #experiment-select {
+      position: fixed; inset: 0; z-index: 200;
+      background: var(--bg-dark); padding: 80px 24px 24px; overflow-y: auto;
+    }
+    #experiment-select.hidden { display: none; }
+    #experiment-select h1 { color: var(--text-primary); font-size: 1.5rem; margin-bottom: 8px; text-align: center; }
+    #experiment-select .subtitle { color: var(--text-muted); font-size: 0.9rem; text-align: center; margin-bottom: 24px; }
+    #experiment-select .grid {
+      max-width: 700px; margin: 0 auto;
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 16px; justify-content: center;
+    }
+    #experiment-select .phobia-card {
+      background: var(--bg-card); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg); padding: 20px;
+      cursor: pointer; transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+      text-align: center;
+    }
+    #experiment-select .phobia-card:hover {
+      transform: translateY(-4px); border-color: var(--accent-primary);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    #experiment-select .phobia-card h3 { margin: 0 0 4px; font-size: 1rem; color: var(--text-primary); }
+    #experiment-select .phobia-card .desc { color: var(--text-muted); font-size: 0.8rem; margin-top: 4px; }
+    #experiment-select .back-link { display: inline-block; margin-bottom: 24px; color: var(--accent-primary); text-decoration: none; font-size: 0.9rem; }
+    #experiment-select .back-link:hover { text-decoration: underline; }
+    #experiment-select .ws-status { padding: 8px 12px; border-radius: 8px; font-size: 0.85rem; margin-bottom: 16px; }
+    #experiment-select .ws-status.connected { background: rgba(74, 222, 128, 0.2); color: var(--accent-success); }
+    #experiment-select .ws-status.disconnected { background: rgba(239, 68, 68, 0.2); color: var(--accent-danger); }
+    #experiment-select .ws-status.connecting { background: rgba(251, 191, 36, 0.2); color: var(--accent-warning); }
+    #hud {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      padding: 12px 16px;
+      background: rgba(10, 14, 20, 0.95); backdrop-filter: blur(12px);
+      color: var(--text-primary); font-size: 14px; z-index: 100;
+      border-top: 1px solid var(--border-subtle);
+    }
+    #progress-bar {
+      position: absolute; top: 0; left: 0; right: 0; height: 4px;
+      background: var(--bg-elevated);
+    }
+    #progress-bar-fill {
+      height: 100%; background: var(--accent-primary);
+      width: 0%; transition: width 0.1s linear;
+    }
+    #hud-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding-top: 4px; }
+    #hud-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    #hud-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    #level-badge { padding: 6px 12px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; }
+    #level-badge.level-1 { background: rgba(74, 222, 128, 0.2); color: var(--level-1); }
+    #level-badge.level-2 { background: rgba(251, 191, 36, 0.2); color: var(--level-2); }
+    #level-badge.level-3 { background: rgba(239, 68, 68, 0.2); color: var(--level-3); }
+    #phobia-label { color: var(--text-secondary); }
+    #video-status { color: var(--accent-primary); margin-left: 8px; font-size: 0.9rem; }
+    #video-status.ready { color: var(--accent-success); }
+    #video-status.error { color: var(--accent-danger); }
+    #time-display { color: var(--text-muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+    .hud-btn {
+      padding: 8px 14px; border-radius: 8px; border: none;
+      font-weight: 600; cursor: pointer; color: #fff;
+      transition: transform 0.15s, opacity 0.15s;
+    }
+    .hud-btn:hover { transform: translateY(-1px); }
+    .hud-btn-play { background: var(--accent-success); }
+    .hud-btn-pause { background: var(--accent-warning); color: #1a1a22; }
+    .hud-btn-menu { background: var(--border-hover); color: var(--text-primary); }
+    #emergency-exit { background: var(--accent-danger); padding: 8px 16px; font-weight: 700; }
+    #emergency-exit:hover { background: var(--accent-danger-hover); }
+    #experiment-hint { font-size: 0.8rem; color: var(--text-muted); }
+    #video-hud.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div id="experiment-select">
+    <a href="menu.html" class="back-link">← Back to menu / メニューに戻る</a>
+    <div id="ws-status" class="ws-status disconnected">WebSocket: Disconnected (start aura_recorder.py)</div>
+    <h1>EEG Experiment / 実験モード</h1>
+    <p class="subtitle">Select a phobia. Video starts at level 2 and changes every 8 seconds (1–3). EEG data is recorded.</p>
+    <div class="grid" id="phobia-grid"></div>
+  </div>
+
+  <div id="video-hud" class="hidden">
+    <div id="progress-bar"><div id="progress-bar-fill"></div></div>
+    <div id="hud-inner">
+      <div id="hud-left">
+        <span id="level-badge">Level 2</span>
+        <span id="phobia-label">—</span>
+        <span id="video-status">Loading…</span>
+        <span id="time-display">0:00 / 0:00</span>
+        <span id="experiment-hint">Auto level change every 8s</span>
+      </div>
+      <div id="hud-right">
+        <button class="hud-btn hud-btn-play" id="btn-play">▶ Play</button>
+        <button class="hud-btn hud-btn-pause" id="btn-pause" style="display:none">⏸ Pause</button>
+        <button class="hud-btn hud-btn-menu" id="btn-menu">← End Experiment</button>
+        <button class="hud-btn" id="emergency-exit">EMERGENCY EXIT</button>
+      </div>
+    </div>
+  </div>
+
+  <video id="video360" loop="false" preload="auto" playsinline muted style="display:none"></video>
+
+  <a-scene embedded background="color: #0a0a12" id="main-scene">
+    <a-entity id="camera-rig" position="0 1.6 0" vr-camera-height="minHeight: 1.5">
+      <a-entity camera look-controls position="0 0 0"></a-entity>
+    </a-entity>
+    <a-entity id="video-world" vr-world-offset="offsetY: -1.5">
+      <a-videosphere id="videosphere" radius="500" rotation="0 -90 0" material="side: back; color: #111" video-texture-on-ready="videoId: video360"></a-videosphere>
+      <a-light type="ambient" intensity="0.3"></a-light>
+    </a-entity>
+  </a-scene>
+
+  <script src="js/app-base.js"></script>
+  <script src="js/logger.js"></script>
+  <script>
+    (function () {
+      var WS_PORT = 8765;
+      var protocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
+      var WS_URL = protocol + '//' + window.location.hostname + ':' + WS_PORT;
+      var LEVEL_INTERVAL_MS = 8000;
+      var phobiaId = null;
+      var phobiaName = null;
+      var currentLevel = 2;
+      var levelSequence = [2, 1, 3, 2, 1, 3];
+      var levelIndex = 0;
+      var ws = null;
+      var levelTimer = null;
+      var contentData = null;
+
+      var selectEl = document.getElementById('experiment-select');
+      var videoHud = document.getElementById('video-hud');
+      var wsStatusEl = document.getElementById('ws-status');
+      var videoEl = document.getElementById('video360');
+      var statusEl = document.getElementById('video-status');
+      var progressFill = document.getElementById('progress-bar-fill');
+      var timeDisplay = document.getElementById('time-display');
+      var badgeEl = document.getElementById('level-badge');
+      var phobiaLabelEl = document.getElementById('phobia-label');
+
+      function setWsStatus(klass, text) {
+        wsStatusEl.className = 'ws-status ' + klass;
+        wsStatusEl.textContent = text;
+      }
+
+      function connectWebSocket() {
+        setWsStatus('connecting', 'WebSocket: Connecting…');
+        try {
+          ws = new WebSocket(WS_URL);
+          ws.onopen = function () {
+            setWsStatus('connected', 'WebSocket: Connected (ready to record EEG)');
+          };
+          ws.onclose = function () {
+            setWsStatus('disconnected', 'WebSocket: Disconnected (start aura_recorder.py)');
+          };
+          ws.onerror = function () {
+            setWsStatus('disconnected', 'WebSocket: Connection failed');
+          };
+        } catch (e) {
+          setWsStatus('disconnected', 'WebSocket: Error - ' + e.message);
+        }
+      }
+
+      function sendWs(msg) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(msg));
+        }
+      }
+
+      function formatTime(s) {
+        var m = Math.floor(s / 60);
+        var sec = Math.floor(s % 60);
+        return m + ':' + (sec < 10 ? '0' : '') + sec;
+      }
+
+      function updateProgress() {
+        if (!videoEl || !progressFill) return;
+        var pct = videoEl.duration > 0 ? (videoEl.currentTime / videoEl.duration) * 100 : 0;
+        progressFill.style.width = pct + '%';
+        if (timeDisplay) {
+          timeDisplay.textContent = formatTime(videoEl.currentTime) + ' / ' + formatTime(videoEl.duration || 0);
+        }
+      }
+
+      window._playerVideoReady = false;
+      window._playerTextureApplied = false;
+
+      function applyVideoTextureToMesh(mesh, video) {
+        if (!mesh || !video) return false;
+        var THREE = AFRAME.THREE;
+        if (!THREE) return false;
+        var tex = new THREE.VideoTexture(video);
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+        try { if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding; } catch (e) {}
+        var material = new THREE.MeshBasicMaterial({
+          map: tex,
+          color: 0xffffff,
+          side: THREE.BackSide,
+          depthWrite: true,
+          depthTest: true
+        });
+        if (mesh.material && mesh.material.dispose) mesh.material.dispose();
+        mesh.material = material;
+        return true;
+      }
+
+      AFRAME.registerComponent('video-texture-on-ready', {
+        schema: { videoId: { default: 'video360' } },
+        _lastTime: -1,
+        tick: function () {
+          var video = document.getElementById(this.data.videoId);
+          var mesh = this.el.getObject3D('mesh');
+          if (mesh && mesh.material && mesh.material.map && video && !video.paused) {
+            var t = video.currentTime;
+            if (t !== this._lastTime) {
+              this._lastTime = t;
+              mesh.material.map.needsUpdate = true;
+            }
+          }
+          if (window._playerTextureApplied && !window._playerForceReapply) return;
+          if (!video || video.readyState < 2) return;
+          if (!mesh) return;
+          if (applyVideoTextureToMesh(mesh, video)) {
+            window._playerTextureApplied = true;
+            window._playerForceReapply = false;
+            window._playerVideoReady = true;
+            if (statusEl) {
+              statusEl.textContent = 'Press Play to start';
+              statusEl.classList.add('ready');
+            }
+            var playPromise = video.play();
+            if (playPromise && playPromise.catch) playPromise.catch(function () {});
+          }
+        }
+      });
+
+      function getVideoUrlForLevel(level, cb) {
+        if (!contentData || !phobiaId) { cb(null); return; }
+        var phobia = contentData.phobias && contentData.phobias.find(function (p) { return p.id === phobiaId; });
+        var lvl = phobia && phobia.levels && phobia.levels.find(function (l) { return l.level_number === level; });
+        cb(lvl ? lvl.video_url_360 : null);
+      }
+
+      function loadVideoForLevel(level, autoPlay) {
+        getVideoUrlForLevel(level, function (url) {
+          var rawUrl = url || 'assets/videos/baseline.mp4';
+          var fullUrl = typeof assetUrl === 'function' ? assetUrl(rawUrl) : rawUrl;
+          statusEl.textContent = 'Loading level ' + level + '…';
+          statusEl.classList.remove('ready');
+          videoEl.setAttribute('src', fullUrl);
+          videoEl.load();
+          videoEl.addEventListener('loadeddata', function onLoaded() {
+            videoEl.removeEventListener('loadeddata', onLoaded);
+            window._playerForceReapply = true;
+            if (statusEl) statusEl.textContent = autoPlay ? 'Playing…' : 'Press Play to start';
+            statusEl.classList.add('ready');
+            if (autoPlay) {
+              videoEl.muted = false;
+              videoEl.play().catch(function () {});
+              document.getElementById('btn-play').style.display = 'none';
+              document.getElementById('btn-pause').style.display = 'inline-block';
+            }
+          }, { once: true });
+          videoEl.addEventListener('error', function () {
+            statusEl.textContent = 'Error loading video';
+            statusEl.classList.add('error');
+          }, { once: true });
+        });
+      }
+
+      function advanceLevel() {
+        levelIndex = (levelIndex + 1) % levelSequence.length;
+        currentLevel = levelSequence[levelIndex];
+        sendWs({ type: 'level_change', level: currentLevel });
+        badgeEl.textContent = 'Level ' + currentLevel;
+        badgeEl.classList.remove('level-1', 'level-2', 'level-3');
+        badgeEl.classList.add('level-' + currentLevel);
+        loadVideoForLevel(currentLevel, true);
+      }
+
+      function startLevelTimer() {
+        if (levelTimer) clearInterval(levelTimer);
+        levelTimer = setInterval(advanceLevel, LEVEL_INTERVAL_MS);
+      }
+
+      function stopLevelTimer() {
+        if (levelTimer) {
+          clearInterval(levelTimer);
+          levelTimer = null;
+        }
+      }
+
+      function endExperiment(reason) {
+        stopLevelTimer();
+        sendWs({ type: 'stop' });
+        if (window.VRPhobiaLogger) {
+          VRPhobiaLogger.emergencyExit(phobiaId, currentLevel, reason || 'user_triggered');
+        }
+        window.location.href = 'menu.html';
+      }
+
+      document.querySelector('a-scene').addEventListener('loaded', function () {
+        var scene = document.querySelector('a-scene');
+        if (scene && scene.renderer) scene.renderer.setClearColor(0x0a0a12);
+      });
+
+      fetch(typeof assetUrl === 'function' ? assetUrl('data/content.json') : 'data/content.json')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          contentData = data;
+          var grid = document.getElementById('phobia-grid');
+          if (!grid || !data.phobias) return;
+          data.phobias.forEach(function (p) {
+            var card = document.createElement('div');
+            card.className = 'phobia-card';
+            card.setAttribute('data-phobia-id', p.id);
+            card.innerHTML = '<h3>' + (p.name || p.id) + '</h3><div class="desc">' + (p.description || '') + '</div>';
+            card.addEventListener('click', function () {
+              phobiaId = card.getAttribute('data-phobia-id');
+              phobiaName = (data.phobias.find(function (x) { return x.id === phobiaId; }) || {}).name || phobiaId;
+
+              sendWs({ type: 'start', phobia_id: phobiaId });
+
+              currentLevel = 2;
+              levelIndex = 0;
+              badgeEl.textContent = 'Level 2';
+              badgeEl.classList.remove('level-1', 'level-2', 'level-3');
+              badgeEl.classList.add('level-2');
+              phobiaLabelEl.textContent = phobiaName || phobiaId;
+
+              selectEl.classList.add('hidden');
+              videoHud.classList.remove('hidden');
+
+              loadVideoForLevel(2, false);
+              videoEl.addEventListener('timeupdate', updateProgress);
+              videoEl.addEventListener('loadedmetadata', updateProgress);
+
+              startLevelTimer();
+            });
+            grid.appendChild(card);
+          });
+        })
+        .catch(function () {});
+
+      document.getElementById('btn-play').addEventListener('click', function () {
+        videoEl.muted = false;
+        window._playerForceReapply = true;
+        videoEl.play().catch(function () {});
+        document.getElementById('btn-play').style.display = 'none';
+        document.getElementById('btn-pause').style.display = 'inline-block';
+      });
+
+      document.getElementById('btn-pause').addEventListener('click', function () {
+        videoEl.pause();
+        document.getElementById('btn-play').style.display = 'inline-block';
+        document.getElementById('btn-pause').style.display = 'none';
+      });
+
+      document.getElementById('btn-menu').addEventListener('click', function () {
+        endExperiment('menu');
+      });
+
+      document.getElementById('emergency-exit').addEventListener('click', function () {
+        endExperiment('emergency');
+      });
+
+      connectWebSocket();
+    })();
+  </script>
+</body>
+</html>
