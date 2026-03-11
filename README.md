@@ -12,7 +12,7 @@ Web VR platform for gradual exposure to 5 phobias, with 3 levels per phobia, eve
    - **With PC monitor:** view adaptive state and change level manually.
 2. **[Platform overview](docs/PLATFORM_VR_PHOBIAS.md)** — What the platform does, full flow, integrations, safety, data outputs.
 
-Quick try (no EEG): `npm install` → `npx serve .` → open `http://localhost:3000`.
+Quick try (no EEG): `npm install` → `npx serve app` → open `http://localhost:3000`.
 
 ---
 
@@ -26,28 +26,39 @@ Quick try (no EEG): `npm install` → `npx serve .` → open `http://localhost:3
 
 ```
 VR-ATR Phobias/
-├── index.html          # Landing / Consent (disclaimer + accept)
-├── menu.html           # VR menu: 5 cards (phobias)
-├── level-select.html   # Level selection 1–3 per phobia
-├── player.html         # 360° player + HUD
-├── experiment.html     # EEG experiment (adaptive or timed levels)
-├── data/
-│   └── content.json    # Phobias, levels, 360 video URLs
-├── js/
-│   └── logger.js       # Event logging
+├── app/                      # Web app (served as root by server)
+│   ├── index.html            # Landing / Consent
+│   ├── menu.html             # VR menu: 5 phobias
+│   ├── level-select.html     # Level 1–3 per phobia
+│   ├── player.html           # 360° player + HUD
+│   ├── experiment.html       # EEG experiment (adaptive levels)
+│   ├── css/
+│   │   └── shared.css
+│   ├── js/
+│   │   ├── app-base.js
+│   │   ├── logger.js
+│   │   └── vr-ui.js
+│   ├── data/
+│   │   └── content.json      # Phobias, levels, video URLs
+│   └── assets/
+│       ├── thumbnails/
+│       └── videos/
 ├── scripts/
-│   ├── aura_test.py    # AURA stream test
-│   ├── aura_recorder.py # LSL + WebSocket → CSV
-│   └── adaptive_monitor_gui.py # PC monitor (state + manual level)
-├── output/             # EEG CSVs (generated)
+│   ├── aura_test.py
+│   ├── aura_recorder.py
+│   ├── adaptive_monitor_gui.py
+│   ├── config_eeg.py
+│   └── eeg_adaptive.py
 ├── docs/
-│   ├── GETTING_STARTED.md      ← Start here (how to run)
-│   ├── PLATFORM_VR_PHOBIAS.md  ← What the platform does
+│   ├── GETTING_STARTED.md    ← Start here (how to run)
+│   ├── PLATFORM_VR_PHOBIAS.md
 │   ├── EEG_EXPERIMENT_SETUP.md
 │   └── EEG_ADAPTIVE_LEVELS.md
-├── assets/
-│   ├── thumbnails/
-│   └── videos/
+├── output/                   # EEG CSVs (generated)
+├── server-https.js           # Serves app/ over HTTPS
+├── generate-cert.js
+├── package.json
+├── requirements.txt
 └── README.md
 ```
 
@@ -55,17 +66,17 @@ VR-ATR Phobias/
 
 1. **Local server** (recommended to load `data/content.json` and avoid CORS):
    ```bash
-   npx serve .
-   # or: python -m http.server 8080
+   npx serve app
+   # or: npx serve ./app
    ```
-2. Open in browser: `http://localhost:3000` (or the port used by `serve`).
+2. Open in browser: **http://localhost:3000** (or the port shown by `serve`).
 3. Flow: Accept consent → Menu (choose phobia) → Choose level → 360° player.
 
-Without a server, opening `index.html` directly may fail to load `content.json` due to browser policies.
+The HTTPS server (`npm run serve:https`) serves the `app/` folder as the site root.
 
 ## Content (360° Videos)
 
-- The 5 phobias and 3 levels are defined in `data/content.json`. URLs point to `assets/videos/<phobia>_level<n>.mp4`.
+- The 5 phobias and 3 levels are defined in `app/data/content.json`. URLs point to `assets/videos/<phobia>_level<n>.mp4` (relative to the app).
 - If those files are missing, the player falls back to a default 360° test video (A-Frame).
 - For production: replace with your own equirectangular videos or licensed URLs.
 
@@ -98,18 +109,16 @@ Experiment mode records EEG while the user watches videos with adaptive or timed
 # First time: certificates
 npm run cert
 
-# Option A: two terminals
+# Option A: single command (server + recorder + PC monitor GUI)
+npm run experiment
+# or double-click: run-experiment.bat (Windows) / run-experiment.sh (Mac/Linux)
+
+# Option B: two terminals (no GUI)
 # Terminal 1: python scripts/aura_recorder.py --wss
 # Terminal 2: npm run serve:https
-
-# Option B: single terminal
-npm run experiment
-
-# Option C: double-click (Windows)
-run-experiment.bat
 ```
 
-Open `https://127.0.0.1:8443` (or your PC's IP for VR) → "Start EEG experiment" → choose phobia. CSVs are saved in `output/`.
+Open `https://127.0.0.1:8443` (or your PC's IP for VR) → "Start EEG experiment" → choose phobia. The **monitor window** (Fear/Engagement index + Level 1/2/3 buttons) opens automatically with `npm run experiment`. CSVs are saved in `output/`.
 
 ## EEG Adaptive Levels
 

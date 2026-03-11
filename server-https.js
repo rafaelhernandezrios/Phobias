@@ -15,7 +15,8 @@ const path = require('path');
 
 const PORT = 8443;
 const PORT_HTTP = 8080;
-const ROOT = __dirname;
+/** Served app (HTML, css, js, data, assets) */
+const ROOT = path.join(__dirname, 'app');
 
 function getMimeType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -28,6 +29,8 @@ function getMimeType(filePath) {
     '.png': 'image/png',
     '.jpg': 'image/jpeg',
     '.svg': 'image/svg+xml',
+  '.mp4': 'video/mp4',
+  '.webm': 'video/webm',
   };
   return mimes[ext] || 'application/octet-stream';
 }
@@ -68,8 +71,9 @@ function requestHandler(req, res) {
   serveFile(res, req.url === '/' ? '/index.html' : req.url);
 }
 
-const keyPath = path.join(ROOT, 'key.pem');
-const certPath = path.join(ROOT, 'cert.pem');
+/** Certificates stay at project root */
+const keyPath = path.join(__dirname, 'key.pem');
+const certPath = path.join(__dirname, 'cert.pem');
 
 if (!fs.existsSync(keyPath) || !fs.existsSync(certPath)) {
   console.error('');

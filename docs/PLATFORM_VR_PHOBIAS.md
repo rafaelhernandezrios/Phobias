@@ -89,7 +89,7 @@ Below is the typical flow when using the platform with EEG and adaptive levels, 
 
 ## 4. Content: Phobias and Levels
 
-The platform includes **5 phobias**, each with **3 intensity levels** (different 360° videos). Content is defined in a data file (`data/content.json`) that the center can modify (videos, durations, text).
+The platform includes **5 phobias**, each with **3 intensity levels** (different 360° videos). Content is defined in a data file (`app/data/content.json`) that the center can modify (videos, durations, text).
 
 | Phobia | Brief description | Levels (example) |
 |--------|-------------------|------------------|

@@ -45,10 +45,10 @@ npm install
 
 To only try the VR exposure app (no recording, no adaptive levels):
 
-1. Install Node deps and start the server:
+1. Install Node deps and start the server (the app lives in the `app/` folder):
    ```bash
    npm install
-   npx serve .
+   npx serve app
    ```
 2. Open in browser: **http://localhost:3000** (or the port shown by `serve`, often 3000).
 3. Accept consent → choose a phobia → choose level 1, 2, or 3 → watch the 360° video.
@@ -75,12 +75,13 @@ npm run cert
 
 1. **Start AURA** (or your LSL EEG device) and make sure it is streaming the stream named `AURA`.
 
-2. **Start the recorder and the web server.**  
-   Either use **one terminal**:
+2. **Start the recorder, web server, and PC monitor.**  
+   Either use **one terminal** (recommended; the monitor GUI opens automatically):
    ```bash
    npm run experiment
    ```
-   Or **two terminals**:
+   Or **double-click** `run-experiment.bat` (Windows) / `run-experiment.sh` (Mac/Linux).  
+   Or **two terminals** (no monitor window):
    - Terminal 1: `python scripts/aura_recorder.py --wss`
    - Terminal 2: `npm run serve:https`
 
@@ -107,17 +108,14 @@ See [EEG_ADAPTIVE_LEVELS.md](EEG_ADAPTIVE_LEVELS.md) for LSL stream names and us
 
 ### Option C: EEG Experiment + PC Monitor
 
-Same as Option B, but you also run the **PC monitor** so the researcher can see the adaptive state and change the level manually (Level 1 / 2 / 3).
+When you run **Option B** with `npm run experiment` (or `run-experiment.bat` / `run-experiment.sh`), the **PC monitor** is started automatically: a window opens with the Fear/Engagement index, level suggestion, current level, and metrics, plus **Level 1**, **Level 2**, **Level 3** buttons to change the exposure level in the participant’s scene.
 
-1. Do **Option B** (recorder + server running, app open in browser/VR).
+To run the monitor **separately** (e.g. on another machine or after starting server + recorder by hand):
 
-2. On the same machine (or another on the network), open a **second terminal** and run:
-   ```bash
-   python scripts/adaptive_monitor_gui.py --wss
-   ```
-   (Use `--wss` if the app is served over HTTPS; use the same `--host` / `--port` if the recorder is on another PC.)
-
-3. The monitor window shows the Fear/Engagement index, level suggestion, current level, and metrics. Use the **Level 1**, **Level 2**, **Level 3** buttons to change the exposure level in the participant’s scene immediately.
+```bash
+python scripts/adaptive_monitor_gui.py --wss
+```
+(Use `--wss` if the app is over HTTPS; use `--host` / `--port` if the recorder is on another PC.)
 
 ---
 
@@ -136,14 +134,14 @@ CSV columns: LSL `timestamp`, `ch1`–`ch8` (raw EEG), `label` (e.g. `arachnopho
 
 | Component | Role |
 |-----------|------|
-| **index.html** | Landing: consent / disclaimer; must accept to continue. |
-| **menu.html** | Menu of phobias; links to level selection or to experiment. |
-| **level-select.html** | Choose level 1–3 for a phobia (standard mode). |
-| **player.html** | 360° video player with HUD (pause, exit, etc.). |
-| **experiment.html** | EEG experiment: one phobia, level can be adaptive or fixed; WebSocket to recorder; EMERGENCY EXIT and High distress. |
+| **app/index.html** | Landing: consent / disclaimer; must accept to continue. |
+| **app/menu.html** | Menu of phobias; links to level selection or to experiment. |
+| **app/level-select.html** | Choose level 1–3 for a phobia (standard mode). |
+| **app/player.html** | 360° video player with HUD (pause, exit, etc.). |
+| **app/experiment.html** | EEG experiment: one phobia, level can be adaptive or fixed; WebSocket to recorder; EMERGENCY EXIT and High distress. |
 | **scripts/aura_recorder.py** | Connects to LSL (AURA), saves EEG to CSV, computes Fear/Engagement index, sends adaptive_state to browser, accepts manual_level from monitor. |
 | **scripts/adaptive_monitor_gui.py** | PC GUI: shows state from recorder, sends Level 1/2/3 to recorder (which updates the participant’s scene). |
-| **data/content.json** | Defines phobias, levels, and video URLs; edit to change content or paths. |
+| **app/data/content.json** | Defines phobias, levels, and video URLs; edit to change content or paths. |
 
 ---
 
