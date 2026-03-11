@@ -10,7 +10,8 @@ Web VR platform for gradual exposure to 5 phobias, with 3 levels per phobia, eve
    - **Demo (no EEG):** try the app in the browser.
    - **Full EEG experiment:** AURA + recorder + HTTPS server; where data is saved.
    - **With PC monitor:** view adaptive state and change level manually.
-2. **[Platform overview](docs/PLATFORM_VR_PHOBIAS.md)** — What the platform does, full flow, integrations, safety, data outputs.
+2. **[Platform overview](docs/PLATFORM_VR_PHOBIAS.md)** — What the platform does, full flow, integrations, safety, data outputs.  
+   **日本語：** [プラットフォーム概要（研究機関向け）](docs/PLATFORM_VR_PHOBIAS_JA.md)
 
 Quick try (no EEG): `npm install` → `npx serve app` → open `http://localhost:3000`.
 
@@ -50,8 +51,9 @@ VR-ATR Phobias/
 │   ├── config_eeg.py
 │   └── eeg_adaptive.py
 ├── docs/
-│   ├── GETTING_STARTED.md    ← Start here (how to run)
-│   ├── PLATFORM_VR_PHOBIAS.md
+│   ├── GETTING_STARTED.md       ← Start here (how to run)
+│   ├── PLATFORM_VR_PHOBIAS.md   ← Platform overview (EN)
+│   ├── PLATFORM_VR_PHOBIAS_JA.md   ← プラットフォーム概要（日本語）
 │   ├── EEG_EXPERIMENT_SETUP.md
 │   └── EEG_ADAPTIVE_LEVELS.md
 ├── output/                   # EEG CSVs (generated)
@@ -137,6 +139,7 @@ Open `https://127.0.0.1:8443` (or your PC's IP for VR) → "Start EEG experiment
 | [docs/PLATFORM_VR_PHOBIAS.md](docs/PLATFORM_VR_PHOBIAS.md) | Platform description and flow for research centers. |
 | [docs/EEG_EXPERIMENT_SETUP.md](docs/EEG_EXPERIMENT_SETUP.md) | EEG setup (HTTPS, WebSocket, certificates). |
 | [docs/EEG_ADAPTIVE_LEVELS.md](docs/EEG_ADAPTIVE_LEVELS.md) | Adaptive index, montage, LSL, monitor. |
+| [docs/PLATFORM_VR_PHOBIAS_JA.md](docs/PLATFORM_VR_PHOBIAS_JA.md) | プラットフォーム概要（日本語）。 |
 
 ## Stack
 
