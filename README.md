@@ -2,6 +2,8 @@
 
 Web VR platform for gradual exposure to 5 phobias, with 3 levels per phobia, event logging, and EEG-based adaptation via LSL/WebSocket.
 
+**Quick try (no EEG):** `npm install` → `npx serve .` → open `http://localhost:3000`.
+
 **For research centers:** platform description, full flow, and integrations in [docs/PLATFORM_VR_PHOBIAS.md](docs/PLATFORM_VR_PHOBIAS.md).
 
 ## Purpose
@@ -75,7 +77,7 @@ Without a server, opening `index.html` directly may fail to load `content.json` 
 
 Experiment mode records EEG while the user watches videos with adaptive or timed level changes.
 
-**Requirements:** AURA streaming LSL, Python with `pylsl` and `websockets`.
+**Requirements:** AURA streaming LSL; Python 3.8+ with `pylsl`, `websockets`, `numpy`, `scipy` (see `requirements.txt`).
 
 **Full guide:** [docs/EEG_EXPERIMENT_SETUP.md](docs/EEG_EXPERIMENT_SETUP.md)
 
