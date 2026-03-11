@@ -93,11 +93,14 @@ run-experiment.bat
 
 Abrir `https://127.0.0.1:8443` (o la IP de la PC para VR) → "Start EEG experiment" → elegir fobia. Los CSV se guardan en `output/`.
 
-## Fase 2 (EEG adaptativo)
+## Niveles adaptativos por EEG (Fase 2)
 
-- Bridge LSL → WebSocket (p. ej. Python con `pylsl`) para enviar `stress_score` al navegador.
-- En el player, recibir el score y aplicar reglas de adaptación (umbrales, histeresis, cooldown) para subir/bajar nivel automáticamente.
-- Sincronizar timestamps de eventos VR con marcadores EEG.
+- **Montaje 10–20:** 8 electrodos F3, F4, Fz, Cz, Pz, P3, P4, Oz (mapeo en `scripts/config_eeg.py`).
+- **Índice Fear/Engagement:** combinación de theta Fz, beta/alpha Fz–Cz, supresión alpha posterior (Pz, P3, P4, Oz) y asimetría frontal alpha (F3–F4). Cálculo en `scripts/eeg_adaptive.py`.
+- El recorder envía por WebSocket `adaptive_state` (fear_index, level_suggestion) cada 2 s; el experimento aplica subir/mantener/bajar nivel con histeresis y cooldown. Botón **Malestar alto** baja un nivel al instante.
+- **Monitor en PC:** `python scripts/adaptive_monitor_gui.py` muestra el estado adaptativo en tiempo real y permite cambiar nivel manualmente (Level 1/2/3). Con HTTPS: `--wss`.
+- **LSL:** con `--lsl` el recorder publica el estado en **VRPhobia_State** y escucha **VRPhobia_ManualLevel** para cambiar escena desde otras apps.
+- Documentación: [docs/EEG_ADAPTIVE_LEVELS.md](docs/EEG_ADAPTIVE_LEVELS.md).
 
 ## Stack
 

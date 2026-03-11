@@ -88,6 +88,7 @@
     #video-status.ready { color: var(--accent-success); }
     #video-status.error { color: var(--accent-danger); }
     #time-display { color: var(--text-muted); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
+    #fear-index-display { color: var(--accent-primary); font-size: 0.85rem; font-variant-numeric: tabular-nums; }
     .hud-btn {
       padding: 8px 14px; border-radius: 8px; border: none;
       font-weight: 600; cursor: pointer; color: #fff;
@@ -108,7 +109,7 @@
     <a href="menu.html" class="back-link">← Back to menu / メニューに戻る</a>
     <div id="ws-status" class="ws-status disconnected">WebSocket: Disconnected (start aura_recorder.py)</div>
     <h1>EEG Experiment / 実験モード</h1>
-    <p class="subtitle">Select a phobia. Video starts at level 2 and changes every 8 seconds (1–3). EEG data is recorded.</p>
+    <p class="subtitle">Select a phobia. Level adapts in real time from your EEG (Fear/Engagement index). EEG data is recorded.</p>
     <div class="grid" id="phobia-grid"></div>
   </div>
 
@@ -120,12 +121,14 @@
         <span id="phobia-label">—</span>
         <span id="video-status">Loading…</span>
         <span id="time-display">0:00 / 0:00</span>
-        <span id="experiment-hint">Auto level change every 8s</span>
+        <span id="fear-index-display" title="Fear/Engagement index (EEG)">—</span>
+        <span id="experiment-hint">Adaptive level from EEG</span>
       </div>
       <div id="hud-right">
         <button class="hud-btn hud-btn-play" id="btn-play">▶ Play</button>
         <button class="hud-btn hud-btn-pause" id="btn-pause" style="display:none">⏸ Pause</button>
         <button class="hud-btn hud-btn-menu" id="btn-menu">← End Experiment</button>
+        <button class="hud-btn" id="btn-high-distress" style="background: #ea580c;">Malestar alto</button>
         <button class="hud-btn" id="emergency-exit">EMERGENCY EXIT</button>
       </div>
     </div>
@@ -150,15 +153,17 @@
       var WS_PORT = 8765;
       var protocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
       var WS_URL = protocol + '//' + window.location.hostname + ':' + WS_PORT;
-      var LEVEL_INTERVAL_MS = 8000;
+      var COOLDOWN_UP_MS = 45000;
+      var COOLDOWN_DOWN_MS = 20000;
+      var HYSTERESIS_COUNT = 2;
       var phobiaId = null;
       var phobiaName = null;
       var currentLevel = 2;
-      var levelSequence = [2, 1, 3, 2, 1, 3];
-      var levelIndex = 0;
       var ws = null;
-      var levelTimer = null;
       var contentData = null;
+      var lastLevelChangeTs = 0;
+      var consecutiveUp = 0;
+      var consecutiveDown = 0;
 
       var selectEl = document.getElementById('experiment-select');
       var videoHud = document.getElementById('video-hud');
@@ -169,6 +174,7 @@
       var timeDisplay = document.getElementById('time-display');
       var badgeEl = document.getElementById('level-badge');
       var phobiaLabelEl = document.getElementById('phobia-label');
+      var fearIndexEl = document.getElementById('fear-index-display');
 
       function setWsStatus(klass, text) {
         wsStatusEl.className = 'ws-status ' + klass;
@@ -182,6 +188,18 @@
           ws.onopen = function () {
             setWsStatus('connected', 'WebSocket: Connected (ready to record EEG)');
           };
+          ws.onmessage = function (ev) {
+            try {
+              var data = JSON.parse(ev.data);
+              if (data.type === 'adaptive_state') {
+                if (fearIndexEl) fearIndexEl.textContent = 'Index: ' + (data.fear_index != null ? Number(data.fear_index).toFixed(2) : '—');
+                applyAdaptiveSuggestion(data.level_suggestion, data.fear_index);
+              } else if (data.type === 'force_level') {
+                var l = parseInt(data.level, 10);
+                if (l >= 1 && l <= 3) setLevelTo(l);
+              }
+            } catch (e) {}
+          };
           ws.onclose = function () {
             setWsStatus('disconnected', 'WebSocket: Disconnected (start aura_recorder.py)');
           };
@@ -191,6 +209,45 @@
         } catch (e) {
           setWsStatus('disconnected', 'WebSocket: Error - ' + e.message);
         }
+      }
+
+      function setLevelTo(targetLevel) {
+        if (targetLevel < 1 || targetLevel > 3) return;
+        currentLevel = targetLevel;
+        lastLevelChangeTs = Date.now();
+        consecutiveUp = 0;
+        consecutiveDown = 0;
+        sendWs({ type: 'level_change', level: currentLevel });
+        badgeEl.textContent = 'Level ' + currentLevel;
+        badgeEl.classList.remove('level-1', 'level-2', 'level-3');
+        badgeEl.classList.add('level-' + currentLevel);
+        loadVideoForLevel(currentLevel, true);
+      }
+
+      function applyAdaptiveSuggestion(suggestion, fearIndex) {
+        if (!suggestion || !phobiaId) return;
+        var now = Date.now();
+        if (suggestion === 'up' && currentLevel === 1) {
+          consecutiveUp++;
+          consecutiveDown = 0;
+          if (consecutiveUp >= HYSTERESIS_COUNT && (now - lastLevelChangeTs) >= COOLDOWN_UP_MS) {
+            setLevelTo(2);
+          }
+        } else if (suggestion === 'down' && currentLevel >= 2) {
+          consecutiveDown++;
+          consecutiveUp = 0;
+          if (consecutiveDown >= HYSTERESIS_COUNT && (now - lastLevelChangeTs) >= COOLDOWN_DOWN_MS) {
+            setLevelTo(Math.max(1, currentLevel - 1));
+          }
+        } else {
+          consecutiveUp = 0;
+          consecutiveDown = 0;
+        }
+      }
+
+      function highDistressDown() {
+        if (currentLevel <= 1) return;
+        setLevelTo(Math.max(1, currentLevel - 1));
       }
 
       function sendWs(msg) {
@@ -302,30 +359,7 @@
         });
       }
 
-      function advanceLevel() {
-        levelIndex = (levelIndex + 1) % levelSequence.length;
-        currentLevel = levelSequence[levelIndex];
-        sendWs({ type: 'level_change', level: currentLevel });
-        badgeEl.textContent = 'Level ' + currentLevel;
-        badgeEl.classList.remove('level-1', 'level-2', 'level-3');
-        badgeEl.classList.add('level-' + currentLevel);
-        loadVideoForLevel(currentLevel, true);
-      }
-
-      function startLevelTimer() {
-        if (levelTimer) clearInterval(levelTimer);
-        levelTimer = setInterval(advanceLevel, LEVEL_INTERVAL_MS);
-      }
-
-      function stopLevelTimer() {
-        if (levelTimer) {
-          clearInterval(levelTimer);
-          levelTimer = null;
-        }
-      }
-
       function endExperiment(reason) {
-        stopLevelTimer();
         sendWs({ type: 'stop' });
         if (window.VRPhobiaLogger) {
           VRPhobiaLogger.emergencyExit(phobiaId, currentLevel, reason || 'user_triggered');
@@ -368,8 +402,9 @@
               loadVideoForLevel(2, false);
               videoEl.addEventListener('timeupdate', updateProgress);
               videoEl.addEventListener('loadedmetadata', updateProgress);
-
-              startLevelTimer();
+              lastLevelChangeTs = Date.now();
+              consecutiveUp = 0;
+              consecutiveDown = 0;
             });
             grid.appendChild(card);
           });
@@ -392,6 +427,10 @@
 
       document.getElementById('btn-menu').addEventListener('click', function () {
         endExperiment('menu');
+      });
+
+      document.getElementById('btn-high-distress').addEventListener('click', function () {
+        highDistressDown();
       });
 
       document.getElementById('emergency-exit').addEventListener('click', function () {

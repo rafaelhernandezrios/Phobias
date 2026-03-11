@@ -31,7 +31,7 @@ Guía para ejecutar el experimento de exposición con registro EEG (AURA) usando
 | Componente | Requisito |
 |-----------|-----------|
 | **AURA** | Ejecutándose y emitiendo stream LSL `AURA` |
-| **Python** | 3.8+ con `pylsl`, `websockets` |
+| **Python** | 3.8+ con `pylsl`, `websockets`, `numpy`, `scipy` (para niveles adaptativos) |
 | **Node.js** | Para servir la app y generar certificados |
 
 ---
@@ -187,6 +187,14 @@ timestamp,ch1,ch2,ch3,ch4,ch5,ch6,ch7,ch8,label
 - **timestamp:** tiempo LSL
 - **ch1–ch8:** canales EEG (raw)
 - **label:** `{phobia}_level{N}` (ej. `acrophobia_level2`)
+
+---
+
+## Niveles adaptativos por EEG
+
+El experimento puede adaptar el nivel (1–3) en tiempo real según un índice Fear/Engagement calculado a partir del EEG. Requiere el montaje de 8 electrodos en posiciones 10–20 (F3, F4, Fz, Cz, Pz, P3, P4, Oz) y las dependencias Python `numpy`, `scipy`.
+
+**Documentación:** [EEG_ADAPTIVE_LEVELS.md](EEG_ADAPTIVE_LEVELS.md) — montaje, fórmula del índice y reglas de subir/mantener/bajar nivel.
 
 ---
 
