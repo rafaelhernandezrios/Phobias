@@ -177,6 +177,7 @@ Step-by-step guide for installing and running the EEG experiment: [EEG_EXPERIMEN
 | Document | Content |
 |----------|---------|
 | [README.md](../README.md) | Project overview, folder structure, quick commands. |
+| [GETTING_STARTED.md](GETTING_STARTED.md) | **How to run:** demo, full EEG experiment, PC monitor; prerequisites; troubleshooting. |
 | [EEG_EXPERIMENT_SETUP.md](EEG_EXPERIMENT_SETUP.md) | EEG experiment setup (HTTPS, WebSocket, certificates, detailed steps). |
 | [EEG_ADAPTIVE_LEVELS.md](EEG_ADAPTIVE_LEVELS.md) | Fear/Engagement index detail, 10–20 montage, adaptation rules, PC monitor. |
 

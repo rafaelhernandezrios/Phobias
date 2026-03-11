@@ -2,9 +2,19 @@
 
 Web VR platform for gradual exposure to 5 phobias, with 3 levels per phobia, event logging, and EEG-based adaptation via LSL/WebSocket.
 
-**Quick try (no EEG):** `npm install` → `npx serve .` → open `http://localhost:3000`.
+---
 
-**For research centers:** platform description, full flow, and integrations in [docs/PLATFORM_VR_PHOBIAS.md](docs/PLATFORM_VR_PHOBIAS.md).
+## For research centers — start here
+
+1. **[Getting started](docs/GETTING_STARTED.md)** — What the repo is, prerequisites, and **step-by-step instructions** to run:
+   - **Demo (no EEG):** try the app in the browser.
+   - **Full EEG experiment:** AURA + recorder + HTTPS server; where data is saved.
+   - **With PC monitor:** view adaptive state and change level manually.
+2. **[Platform overview](docs/PLATFORM_VR_PHOBIAS.md)** — What the platform does, full flow, integrations, safety, data outputs.
+
+Quick try (no EEG): `npm install` → `npx serve .` → open `http://localhost:3000`.
+
+---
 
 ## Purpose
 
@@ -31,7 +41,8 @@ VR-ATR Phobias/
 │   └── adaptive_monitor_gui.py # PC monitor (state + manual level)
 ├── output/             # EEG CSVs (generated)
 ├── docs/
-│   ├── PLATFORM_VR_PHOBIAS.md
+│   ├── GETTING_STARTED.md      ← Start here (how to run)
+│   ├── PLATFORM_VR_PHOBIAS.md  ← What the platform does
 │   ├── EEG_EXPERIMENT_SETUP.md
 │   └── EEG_ADAPTIVE_LEVELS.md
 ├── assets/
@@ -108,6 +119,15 @@ Open `https://127.0.0.1:8443` (or your PC's IP for VR) → "Start EEG experiment
 - **PC monitor:** `python scripts/adaptive_monitor_gui.py` shows adaptive state in real time and allows manual level change (Level 1/2/3). With HTTPS: `--wss`.
 - **LSL:** with `--lsl` the recorder publishes state to **VRPhobia_State** and listens to **VRPhobia_ManualLevel** to change the scene from other apps.
 - Documentation: [docs/EEG_ADAPTIVE_LEVELS.md](docs/EEG_ADAPTIVE_LEVELS.md).
+
+## Documentation
+
+| Doc | Purpose |
+|-----|---------|
+| [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) | **Run the project:** demo, EEG experiment, PC monitor; prerequisites; troubleshooting. |
+| [docs/PLATFORM_VR_PHOBIAS.md](docs/PLATFORM_VR_PHOBIAS.md) | Platform description and flow for research centers. |
+| [docs/EEG_EXPERIMENT_SETUP.md](docs/EEG_EXPERIMENT_SETUP.md) | EEG setup (HTTPS, WebSocket, certificates). |
+| [docs/EEG_ADAPTIVE_LEVELS.md](docs/EEG_ADAPTIVE_LEVELS.md) | Adaptive index, montage, LSL, monitor. |
 
 ## Stack
 
