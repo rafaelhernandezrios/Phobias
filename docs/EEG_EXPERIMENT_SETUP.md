@@ -1,19 +1,19 @@
 # EEG Experiment Setup — VR Phobia + AURA
 
-Guía para ejecutar el experimento de exposición con registro EEG (AURA) usando HTTPS (necesario para VR/WebXR).
+Guide for running the exposure experiment with EEG recording (AURA) using HTTPS (required for VR/WebXR).
 
 ---
 
-## Diagrama de flujo
+## Flow Diagram
 
 ```
 ┌─────────────────┐     ┌──────────────────────┐     ┌─────────────────┐
 │  AURA (EEG)     │────▶│  aura_recorder.py     │◀────│  experiment.html │
-│  Stream LSL     │     │  LSL + WebSocket WSS  │     │  (navegador/VR)  │
+│  LSL Stream     │     │  LSL + WebSocket WSS  │     │  (browser/VR)    │
 └─────────────────┘     └──────────────────────┘     └─────────────────┘
          │                        │                            │
          │ 250 Hz                 │ ws://localhost:8765        │ https://
-         │ 8 canales              │ o wss://...:8765           │ 192.168.x.x:8443
+         │ 8 channels             │ or wss://...:8765           │ 192.168.x.x:8443
          └────────────────────────┴────────────────────────────┘
                                     │
                                     ▼
@@ -26,31 +26,31 @@ Guía para ejecutar el experimento de exposición con registro EEG (AURA) usando
 
 ---
 
-## Requisitos previos
+## Prerequisites
 
-| Componente | Requisito |
-|-----------|-----------|
-| **AURA** | Ejecutándose y emitiendo stream LSL `AURA` |
-| **Python** | 3.8+ con `pylsl`, `websockets`, `numpy`, `scipy` (para niveles adaptativos) |
-| **Node.js** | Para servir la app y generar certificados |
+| Component | Requirement |
+|-----------|-------------|
+| **AURA** | Running and streaming LSL stream `AURA` |
+| **Python** | 3.8+ with `pylsl`, `websockets`, `numpy`, `scipy` (for adaptive levels) |
+| **Node.js** | To serve the app and generate certificates |
 
 ---
 
-## Instalación
+## Installation
 
 ```bash
-# 1. Dependencias Node (ya en el proyecto)
+# 1. Node dependencies (already in project)
 npm install
 
-# 2. Dependencias Python
+# 2. Python dependencies
 pip install -r requirements.txt
 ```
 
 ---
 
-## Lanzador rápido (ejecutable / doble clic)
+## Quick Launcher (double-click)
 
-**Windows:** Doble clic en `run-experiment.bat`
+**Windows:** Double-click `run-experiment.bat`
 
 **Mac/Linux:**
 ```bash
@@ -58,36 +58,36 @@ chmod +x run-experiment.sh
 ./run-experiment.sh
 ```
 
-El script genera certificados si faltan y arranca servidor + recorder. Requiere tener AURA activo y haber ejecutado `npm install` + `pip install -r requirements.txt` al menos una vez.
+The script generates certificates if missing and starts server + recorder. Requires AURA to be running and `npm install` + `pip install -r requirements.txt` to have been run at least once.
 
 ---
 
-## Ejecución paso a paso
+## Step-by-Step Execution
 
-### Terminal 1: Certificados (solo la primera vez)
+### Terminal 1: Certificates (first time only)
 
 ```bash
 npm run cert
 ```
 
-Genera `cert.pem` y `key.pem` en la raíz del proyecto.
+Generates `cert.pem` and `key.pem` in the project root.
 
 ---
 
-### Terminal 2: Recorder EEG (Python)
+### Terminal 2: EEG Recorder (Python)
 
 ```bash
-# Con HTTPS (obligatorio si la app usa HTTPS)
+# With HTTPS (required if the app uses HTTPS)
 python scripts/aura_recorder.py --wss
 ```
 
-Si la app usa HTTP (puerto 8080):
+If the app uses HTTP (port 8080):
 
 ```bash
 python scripts/aura_recorder.py
 ```
 
-Debes ver algo como:
+You should see something like:
 
 ```
 === AURA EEG Recorder ===
@@ -99,82 +99,82 @@ Ready. Open experiment.html in browser and start an experiment.
 
 ---
 
-### Terminal 3: Servidor web HTTPS
+### Terminal 3: HTTPS Web Server
 
 ```bash
 npm run serve:https
 ```
 
-O:
+Or:
 
 ```bash
 npx http-server -p 8443 -S -c-1
 ```
 
-**Alternativa: todo en una sola terminal**
+**Alternative: everything in one terminal**
 
 ```bash
 npm run experiment
 ```
 
-Ejecuta servidor HTTPS + recorder en paralelo (requiere `concurrently` y AURA activo).
+Runs HTTPS server + recorder in parallel (requires `concurrently` and AURA to be running).
 
 ---
 
-La app estará en:
+The app will be available at:
 
-- **Mismo PC:** `https://127.0.0.1:8443`
-- **VR / otro dispositivo:** `https://192.168.x.x:8443` (usa la IP de tu PC en la red)
-
----
-
-## Flujo del experimento
-
-1. Abrir la app en el navegador (o VR): `https://...:8443`
-2. Clic en **"Start EEG experiment"**
-3. Comprobar que el estado WebSocket sea **verde** (Connected)
-4. Elegir una fobia (ej. Acrophobia)
-5. El video empieza en **level 2** y cambia cada **8 segundos** entre 1, 2 y 3
-6. Al terminar: **"End Experiment"** o **EMERGENCY EXIT**
-7. El CSV se guarda en `output/eeg_<phobia>_<timestamp>.csv`
+- **Same PC:** `https://127.0.0.1:8443`
+- **VR / other device:** `https://192.168.x.x:8443` (use your PC's IP on the network)
 
 ---
 
-## Compatibilidad HTTPS + WebSocket
+## Experiment Flow
 
-| App (servidor) | WebSocket (recorder) | Comando recorder |
-|----------------|----------------------|------------------|
-| HTTP (8080)    | ws://                | `python scripts/aura_recorder.py` |
-| HTTPS (8443)   | wss://               | `python scripts/aura_recorder.py --wss` |
-
-La página usa automáticamente `ws://` o `wss://` según el protocolo de la URL.
+1. Open the app in the browser (or VR): `https://...:8443`
+2. Click **"Start EEG experiment"**
+3. Check that the WebSocket status is **green** (Connected)
+4. Choose a phobia (e.g. Acrophobia)
+5. Video starts at **level 2**; level can change adaptively (or on a timer) between 1, 2 and 3
+6. When finished: **"End Experiment"** or **EMERGENCY EXIT**
+7. CSV is saved to `output/eeg_<phobia>_<timestamp>.csv`
 
 ---
 
-## Test rápido (sin experimento)
+## HTTPS + WebSocket Compatibility
+
+| App (server) | WebSocket (recorder) | Recorder command |
+|--------------|----------------------|------------------|
+| HTTP (8080)  | ws://                | `python scripts/aura_recorder.py` |
+| HTTPS (8443) | wss://                | `python scripts/aura_recorder.py --wss` |
+
+The page automatically uses `ws://` or `wss://` based on the URL protocol.
+
+---
+
+## Quick Test (no experiment)
 
 ```bash
-# Verificar que AURA envía datos
+# Verify that AURA is sending data
 python scripts/aura_test.py
 ```
 
-Genera `aura_test_output.csv` con ~500 muestras.
+Generates `aura_test_output.csv` with ~500 samples.
 
 ---
 
-## Solución de problemas
+## Troubleshooting
 
-| Problema | Solución |
+| Problem | Solution |
 |---------|----------|
-| WebSocket: Disconnected | Ejecutar `aura_recorder.py` (con `--wss` si usas HTTPS) |
-| "Connection rejected" | Usar `--wss` cuando la app está en HTTPS |
-| No AURA stream | Comprobar que AURA esté activo y emitiendo LSL |
-| No se ve en VR | Usar HTTPS y la IP de la PC (ej. `https://192.168.10.114:8443`) |
-| Certificado inválido | En el navegador, aceptar el aviso de certificado autofirmado |
+| WebSocket: Disconnected | Run `aura_recorder.py` (with `--wss` if using HTTPS) |
+| "Connection rejected" | Use `--wss` when the app is on HTTPS |
+| No AURA stream | Check that AURA is running and streaming LSL |
+| Not visible in VR | Use HTTPS and your PC's IP (e.g. `https://192.168.10.114:8443`) |
+| Invalid certificate | In the browser, accept the self-signed certificate warning |
 
 ---
 
-## Estructura del CSV de salida
+## Output CSV Structure
 
 ```csv
 timestamp,ch1,ch2,ch3,ch4,ch5,ch6,ch7,ch8,label
@@ -184,33 +184,33 @@ timestamp,ch1,ch2,ch3,ch4,ch5,ch6,ch7,ch8,label
 352728.5,-90123.4,...,acrophobia_level1
 ```
 
-- **timestamp:** tiempo LSL
-- **ch1–ch8:** canales EEG (raw)
-- **label:** `{phobia}_level{N}` (ej. `acrophobia_level2`)
+- **timestamp:** LSL time
+- **ch1–ch8:** EEG channels (raw)
+- **label:** `{phobia}_level{N}` (e.g. `acrophobia_level2`)
 
 ---
 
-## Niveles adaptativos por EEG
+## EEG Adaptive Levels
 
-El experimento puede adaptar el nivel (1–3) en tiempo real según un índice Fear/Engagement calculado a partir del EEG. Requiere el montaje de 8 electrodos en posiciones 10–20 (F3, F4, Fz, Cz, Pz, P3, P4, Oz) y las dependencias Python `numpy`, `scipy`.
+The experiment can adapt the level (1–3) in real time based on a Fear/Engagement index computed from the EEG. This requires the 8-electrode 10–20 montage (F3, F4, Fz, Cz, Pz, P3, P4, Oz) and the Python dependencies `numpy` and `scipy`.
 
-**Documentación:** [EEG_ADAPTIVE_LEVELS.md](EEG_ADAPTIVE_LEVELS.md) — montaje, fórmula del índice y reglas de subir/mantener/bajar nivel.
+**Documentation:** [EEG_ADAPTIVE_LEVELS.md](EEG_ADAPTIVE_LEVELS.md) — montage, index formula, and level up/hold/down rules.
 
 ---
 
-## Recorder como .exe (opcional)
+## Recorder as .exe (Optional)
 
-Si quieres distribuir el recorder sin Python instalado:
+To distribute the recorder without Python installed:
 
 ```bash
 pip install pyinstaller
 pyinstaller --onefile --name aura-recorder scripts/aura_recorder.py
 ```
 
-El `.exe` estará en `dist/aura-recorder.exe`. Ejecutar con `--wss` para HTTPS:
+The `.exe` will be in `dist/aura-recorder.exe`. Run with `--wss` for HTTPS:
 
 ```bash
 dist/aura-recorder.exe --wss
 ```
 
-**Nota:** AURA y LSL deben estar instalados en el sistema; el .exe solo empaqueta el script Python. Ejecutar el .exe desde la carpeta del proyecto (donde están `cert.pem` y `key.pem` para `--wss`).
+**Note:** AURA and LSL must be installed on the system; the .exe only bundles the Python script. Run the .exe from the project folder (where `cert.pem` and `key.pem` are located for `--wss`).

@@ -1,108 +1,113 @@
 # WebVR Phobia Exposure + EEG Adaptive Levels
 
-Plataforma web VR para exposición gradual a 5 fobias, con 3 niveles por fobia, registro de eventos y preparada para fase 2 (adaptación por EEG vía LSL/WebSocket).
+Web VR platform for gradual exposure to 5 phobias, with 3 levels per phobia, event logging, and EEG-based adaptation via LSL/WebSocket.
 
-## Objetivo
+**For research centers:** platform description, full flow, and integrations in [docs/PLATFORM_VR_PHOBIAS.md](docs/PLATFORM_VR_PHOBIAS.md).
 
-- Experiencia VR web: menú → elegir fobia → elegir nivel (1–3) → reproducir video 360°.
-- Logs sincronizados: `session_id`, `phobia_id`, `level`, `video_id`, `timestamp_start/end`, `user_actions`.
-- Seguridad: disclaimer en landing, botón **EMERGENCY EXIT** siempre visible.
+## Purpose
 
-## Estructura del proyecto
+- Web VR experience: menu → choose phobia → choose level (1–3) → play 360° video.
+- Synchronized logs: `session_id`, `phobia_id`, `level`, `video_id`, `timestamp_start/end`, `user_actions`.
+- Safety: disclaimer on landing, **EMERGENCY EXIT** button always visible.
+
+## Project Structure
 
 ```
 VR-ATR Phobias/
-├── index.html          # Landing / Consent (disclaimer + aceptar)
-├── menu.html           # Menú VR: 5 tarjetas (fobias)
-├── level-select.html   # Selección de nivel 1–3 por fobia
-├── player.html         # Reproductor 360° + HUD
-├── experiment.html     # Experimento EEG (niveles automáticos cada 8s)
+├── index.html          # Landing / Consent (disclaimer + accept)
+├── menu.html           # VR menu: 5 cards (phobias)
+├── level-select.html   # Level selection 1–3 per phobia
+├── player.html         # 360° player + HUD
+├── experiment.html     # EEG experiment (adaptive or timed levels)
 ├── data/
-│   └── content.json    # Fobias, niveles, URLs de videos 360
+│   └── content.json    # Phobias, levels, 360 video URLs
 ├── js/
-│   └── logger.js       # Registro de eventos
+│   └── logger.js       # Event logging
 ├── scripts/
-│   ├── aura_test.py    # Test del stream AURA
-│   └── aura_recorder.py # LSL + WebSocket → CSV
-├── output/             # CSVs de EEG (generados)
+│   ├── aura_test.py    # AURA stream test
+│   ├── aura_recorder.py # LSL + WebSocket → CSV
+│   └── adaptive_monitor_gui.py # PC monitor (state + manual level)
+├── output/             # EEG CSVs (generated)
 ├── docs/
-│   └── EEG_EXPERIMENT_SETUP.md
-├── assets/             # Opcional: thumbnails y videos
+│   ├── PLATFORM_VR_PHOBIAS.md
+│   ├── EEG_EXPERIMENT_SETUP.md
+│   └── EEG_ADAPTIVE_LEVELS.md
+├── assets/
 │   ├── thumbnails/
 │   └── videos/
 └── README.md
 ```
 
-## Cómo probar
+## Quick Test
 
-1. **Servidor local** (recomendado para cargar `data/content.json` y evitar CORS):
+1. **Local server** (recommended to load `data/content.json` and avoid CORS):
    ```bash
    npx serve .
-   # o: python -m http.server 8080
+   # or: python -m http.server 8080
    ```
-2. Abre en el navegador: `http://localhost:3000` (o el puerto que use `serve`).
-3. Flujo: Aceptar consent → Menú (elegir fobia) → Elegir nivel → Player 360°.
+2. Open in browser: `http://localhost:3000` (or the port used by `serve`).
+3. Flow: Accept consent → Menu (choose phobia) → Choose level → 360° player.
 
-Sin servidor, abrir `index.html` directamente puede fallar al cargar `content.json` por políticas del navegador.
+Without a server, opening `index.html` directly may fail to load `content.json` due to browser policies.
 
-## Contenido (videos 360°)
+## Content (360° Videos)
 
-- En `data/content.json` están definidas las 5 fobias y 3 niveles. Las URLs apuntan a `assets/videos/<fobia>_level<n>.mp4`.
-- Si no existen esos archivos, el reproductor usa por defecto un video 360° de prueba (A-Frame).
-- Para producción: sustituir por tus propios videos equirectangulares o URLs con licencia.
+- The 5 phobias and 3 levels are defined in `data/content.json`. URLs point to `assets/videos/<phobia>_level<n>.mp4`.
+- If those files are missing, the player falls back to a default 360° test video (A-Frame).
+- For production: replace with your own equirectangular videos or licensed URLs.
 
-## Fobias incluidas
+## Included Phobias
 
-| # | Fobia            | Tipo               |
-|---|------------------|--------------------|
-| 1 | Arachnophobia    | Arañas             |
-| 2 | Claustrophobia   | Espacios cerrados  |
-| 3 | Acrophobia       | Alturas            |
-| 4 | Ophidiophobia    | Serpientes         |
-| 5 | Entomophobia     | Insectos           |
+| # | Phobia          | Type                |
+|---|-----------------|---------------------|
+| 1 | Arachnophobia   | Spiders             |
+| 2 | Claustrophobia  | Enclosed spaces     |
+| 3 | Acrophobia      | Heights             |
+| 4 | Ophidiophobia   | Snakes              |
+| 5 | Entomophobia    | Insects             |
 
 ## Logs
 
-- Cada acción (consent, fobia elegida, nivel, inicio/fin de video, pausa, reinicio, salida, emergency exit) se registra con `VRPhobiaLogger`.
-- Los logs se imprimen en consola y se pueden exportar con `VRPhobiaLogger.exportJSON()` o `VRPhobiaLogger.downloadLogs()` (por ejemplo desde la consola del navegador).
+- Every action (consent, phobia chosen, level, video start/end, pause, restart, exit, emergency exit) is logged with `VRPhobiaLogger`.
+- Logs are printed to the console and can be exported with `VRPhobiaLogger.exportJSON()` or `VRPhobiaLogger.downloadLogs()` (e.g. from the browser console).
 
-## Experimento EEG (AURA)
+## EEG Experiment (AURA)
 
-Modo de experimento que registra EEG mientras el usuario ve videos con cambio automático de niveles cada 8 segundos.
+Experiment mode records EEG while the user watches videos with adaptive or timed level changes.
 
-**Requisitos:** AURA emitiendo LSL, Python con `pylsl` y `websockets`.
+**Requirements:** AURA streaming LSL, Python with `pylsl` and `websockets`.
 
-**Guía completa:** [docs/EEG_EXPERIMENT_SETUP.md](docs/EEG_EXPERIMENT_SETUP.md)
+**Full guide:** [docs/EEG_EXPERIMENT_SETUP.md](docs/EEG_EXPERIMENT_SETUP.md)
 
-**Resumen rápido (HTTPS + VR):**
+**Quick start (HTTPS + VR):**
 
 ```bash
-# Primera vez: certificados
+# First time: certificates
 npm run cert
 
-# Opción A: dos terminales
+# Option A: two terminals
 # Terminal 1: python scripts/aura_recorder.py --wss
 # Terminal 2: npm run serve:https
 
-# Opción B: una sola terminal
+# Option B: single terminal
 npm run experiment
 
-# Opción C: doble clic (Windows)
+# Option C: double-click (Windows)
 run-experiment.bat
 ```
 
-Abrir `https://127.0.0.1:8443` (o la IP de la PC para VR) → "Start EEG experiment" → elegir fobia. Los CSV se guardan en `output/`.
+Open `https://127.0.0.1:8443` (or your PC's IP for VR) → "Start EEG experiment" → choose phobia. CSVs are saved in `output/`.
 
-## Niveles adaptativos por EEG (Fase 2)
+## EEG Adaptive Levels
 
-- **Montaje 10–20:** 8 electrodos F3, F4, Fz, Cz, Pz, P3, P4, Oz (mapeo en `scripts/config_eeg.py`).
-- **Índice Fear/Engagement:** combinación de theta Fz, beta/alpha Fz–Cz, supresión alpha posterior (Pz, P3, P4, Oz) y asimetría frontal alpha (F3–F4). Cálculo en `scripts/eeg_adaptive.py`.
-- El recorder envía por WebSocket `adaptive_state` (fear_index, level_suggestion) cada 2 s; el experimento aplica subir/mantener/bajar nivel con histeresis y cooldown. Botón **Malestar alto** baja un nivel al instante.
-- **Monitor en PC:** `python scripts/adaptive_monitor_gui.py` muestra el estado adaptativo en tiempo real y permite cambiar nivel manualmente (Level 1/2/3). Con HTTPS: `--wss`.
-- **LSL:** con `--lsl` el recorder publica el estado en **VRPhobia_State** y escucha **VRPhobia_ManualLevel** para cambiar escena desde otras apps.
-- Documentación: [docs/EEG_ADAPTIVE_LEVELS.md](docs/EEG_ADAPTIVE_LEVELS.md).
+- **10–20 montage:** 8 electrodes F3, F4, Fz, Cz, Pz, P3, P4, Oz (mapping in `scripts/config_eeg.py`).
+- **Fear/Engagement index:** combination of theta Fz, beta/alpha Fz–Cz, posterior alpha suppression (Pz, P3, P4, Oz), and frontal alpha asymmetry (F3–F4). Computed in `scripts/eeg_adaptive.py`.
+- The recorder sends `adaptive_state` (fear_index, level_suggestion) via WebSocket every 2 s; the experiment applies level up/hold/down with hysteresis and cooldown. **High distress** button lowers the level immediately.
+- **PC monitor:** `python scripts/adaptive_monitor_gui.py` shows adaptive state in real time and allows manual level change (Level 1/2/3). With HTTPS: `--wss`.
+- **LSL:** with `--lsl` the recorder publishes state to **VRPhobia_State** and listens to **VRPhobia_ManualLevel** to change the scene from other apps.
+- Documentation: [docs/EEG_ADAPTIVE_LEVELS.md](docs/EEG_ADAPTIVE_LEVELS.md).
 
 ## Stack
 
-- **MVP:** A-Frame (CDN), HTML/CSS/JS estático.
-- Opcional: servidor mínimo (Node o Python) para servir archivos y, en Fase 2, WebSocket.
+- **Core:** A-Frame (CDN), static HTML/CSS/JS.
+- Optional: minimal server (Node or Python) to serve files and, for the experiment, WebSocket.
