@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VR Phobia Exposure — Welcome (v2)</title>
+  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+  <script src="js/app-base.js"></script>
+  <script>
+    AFRAME.registerComponent('layer-over-video', {
+      init: function () {
+        var obj = this.el.object3D;
+        if (!obj) return;
+        obj.traverse(function (o) { if (o.layers) o.layers.set(1); });
+      }
+    });
+    AFRAME.registerComponent('camera-enable-layer-1', {
+      init: function () {
+        var cam = this.el.components.camera && this.el.components.camera.camera;
+        if (cam && cam.layers) cam.layers.enable(1);
+      }
+    });
+    AFRAME.registerComponent('vr-camera-height', {
+      schema: { height: { type: 'number', default: 2.0 } },
+      tick: function () {
+        if (this.el.sceneEl.is && this.el.sceneEl.is('vr-mode')) this.el.object3D.position.y = this.data.height;
+      }
+    });
+    AFRAME.registerComponent('hand-pose-sync', {
+      tick: function () {
+        var comp = this.el.components['hand-tracking-controls'];
+        if (!comp || !comp.wristObject3D) return;
+        var wrist = comp.wristObject3D;
+        var parent = this.el.parentEl && this.el.parentEl.object3D;
+        if (!parent) return;
+        var THREE = AFRAME.THREE;
+        var pos = this._pos || (this._pos = new THREE.Vector3());
+        var quat = this._quat || (this._quat = new THREE.Quaternion());
+        var parentQuat = this._parentQuat || (this._parentQuat = new THREE.Quaternion());
+        wrist.getWorldPosition(pos);
+        parent.worldToLocal(pos);
+        this.el.object3D.position.copy(pos);
+        wrist.getWorldQuaternion(quat);
+        parent.getWorldQuaternion(parentQuat);
+        this.el.object3D.quaternion.copy(quat).premultiply(parentQuat.clone().invert());
+      }
+    });
+    AFRAME.registerComponent('hand-pinch-cursor', {
+      init: function () {
+        var self = this;
+        this.el.addEventListener('pinchended', function () {
+          var raycaster = self.el.components.raycaster;
+          if (!raycaster) return;
+          var els = raycaster.intersectedEls || (raycaster.intersections && raycaster.intersections.length ? [raycaster.intersections[0].object.el].filter(Boolean) : []);
+          var target = els[0];
+          if (!target) return;
+          while (target && !target.classList.contains('clickable')) target = target.parentEl;
+          if (target) target.emit('click');
+        });
+      }
+    });
+    AFRAME.registerComponent('hand-laser-visual', {
+      init: function () {
+        var el = this.el;
+        var rayLength = 8;
+        this.rayLength = rayLength;
+        this.lineEl = document.createElement('a-entity');
+        this.lineEl.setAttribute('geometry', 'primitive: cylinder; radius: 0.006; height: ' + rayLength);
+        this.lineEl.setAttribute('material', 'color: #00d4ff; opacity: 0.85; transparent: true');
+        this.lineEl.setAttribute('rotation', '90 0 0');
+        this.lineEl.setAttribute('position', '0 0 ' + (-rayLength / 2));
+        this.cursorEl = document.createElement('a-entity');
+        this.cursorEl.setAttribute('geometry', 'primitive: ring; radiusInner: 0.015; radiusOuter: 0.025');
+        this.cursorEl.setAttribute('material', 'color: #00d4ff; side: double');
+        this.cursorEl.setAttribute('rotation', '90 0 0');
+        this.cursorEl.setAttribute('position', '0 0 -' + rayLength);
+        el.appendChild(this.lineEl);
+        el.appendChild(this.cursorEl);
+      },
+      tick: function () {
+        var raycaster = this.el.components.raycaster;
+        if (!raycaster) return;
+        var dist = this.rayLength;
+        if (raycaster.intersections && raycaster.intersections.length > 0 && raycaster.intersections[0].distance !== undefined) {
+          dist = Math.min(raycaster.intersections[0].distance, this.rayLength);
+        }
+        this.lineEl.setAttribute('geometry', 'primitive: cylinder; radius: 0.006; height: ' + dist);
+        this.lineEl.setAttribute('position', '0 0 ' + (-dist / 2));
+        this.cursorEl.setAttribute('position', '0 0 -' + dist);
+      }
+    });
+    AFRAME.registerComponent('video-texture-flow', {
+      schema: { videoId: { default: 'video360-flow' } },
+      _lastTime: -1,
+      tick: function () {
+        var video = document.getElementById(this.data.videoId);
+        var mesh = this.el.getObject3D('mesh');
+        if (mesh && mesh.material && mesh.material.map && video && !video.paused) {
+          var t = video.currentTime;
+          if (t !== this._lastTime) { this._lastTime = t; mesh.material.map.needsUpdate = true; }
+        }
+        if (window._flowTextureApplied && !window._flowForceReapply) return;
+        if (!video || video.readyState < 2) return;
+        if (!mesh) return;
+        var THREE = AFRAME.THREE;
+        if (!THREE) return;
+        var tex = new THREE.VideoTexture(video);
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+        try { if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding; } catch (e) {}
+        var mat = new THREE.MeshBasicMaterial({ map: tex, color: 0xffffff, side: THREE.BackSide, depthWrite: true, depthTest: true });
+        if (mesh.material && mesh.material.dispose) mesh.material.dispose();
+        mesh.material = mat;
+        window._flowTextureApplied = true;
+        window._flowForceReapply = false;
+        video.muted = false;
+        video.play().catch(function () {});
+      }
+    });
+  </script>
+  <link rel="stylesheet" href="css/shared.css" />
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100vh; overflow-x: hidden; }
+
+    /* —— 2D: pantalla en navegador —— */
+    #disclaimer-2d {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(1rem, 4vw, 2rem);
+      background: var(--bg-dark);
+      color: var(--text-primary);
+    }
+    #disclaimer-2d.hidden { display: none; }
+
+    .disclaimer-card {
+      width: 100%;
+      max-width: 560px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: clamp(1.25rem, 3vw, 2rem);
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+    .disclaimer-card .logo {
+      font-size: clamp(2rem, 5vw, 3rem);
+      margin-bottom: 0.5rem;
+    }
+    .disclaimer-card h1 {
+      font-size: clamp(1.25rem, 2.5vw, 1.6rem);
+      margin: 0 0 0.35rem;
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    .disclaimer-card .subtitle {
+      color: var(--text-secondary);
+      font-size: clamp(0.9rem, 1.8vw, 1rem);
+      margin-bottom: 1.25rem;
+    }
+    .disclaimer-card p {
+      line-height: 1.65;
+      color: var(--text-secondary);
+      font-size: clamp(0.9rem, 1.6vw, 0.95rem);
+      margin: 0 0 1rem;
+      text-align: left;
+    }
+    .disclaimer-card p.center { text-align: center; }
+    .disclaimer-box {
+      background: var(--bg-elevated);
+      padding: 1rem 1.25rem;
+      border-radius: var(--radius-md);
+      margin: 1rem 0;
+      font-size: 0.9rem;
+      text-align: left;
+      border-left: 4px solid var(--accent-warning);
+    }
+    .disclaimer-box strong { color: var(--text-primary); }
+    .steps-list {
+      text-align: left;
+      margin: 1rem 0;
+      padding-left: 1.25rem;
+    }
+    .steps-list li {
+      margin-bottom: 0.4rem;
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+      justify-content: center;
+    }
+    .btn-row .btn { min-width: 160px; }
+    .btn-vr-toggle {
+      margin-top: 0.75rem;
+      background: transparent;
+      color: var(--accent-primary);
+      border: 1px solid var(--accent-primary);
+    }
+    .btn-vr-toggle:hover { background: rgba(91, 156, 245, 0.15); }
+
+    /* Vista 2: elección de modo (misma página para no salir de VR) */
+    #choice-2d { position: fixed; inset: 0; z-index: 100; display: none; flex-direction: column; align-items: center; justify-content: center; padding: clamp(1rem, 4vw, 2rem); background: var(--bg-dark); color: var(--text-primary); }
+    #choice-2d.active { display: flex; }
+    #choice-2d .choice-card { max-width: 520px; width: 100%; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: clamp(1.5rem, 4vw, 2.5rem); text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
+    #choice-2d .choice-card h1 { font-size: clamp(1.2rem, 2.5vw, 1.5rem); margin: 0 0 1rem; color: var(--text-primary); }
+    #choice-2d .choice-card p { color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 1.5rem; }
+    #choice-2d .btn-row { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; }
+    #choice-2d .btn-row .btn { min-width: 200px; }
+
+    /* Escena VR: oculta en 2D para no tapar con canvas; se ve al entrar en VR */
+    a-scene {
+      display: block;
+      width: 100%;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <!-- Vista 2D (navegador) -->
+  <div id="disclaimer-2d">
+    <div class="disclaimer-card">
+      <div class="logo">🌐</div>
+      <h1>VR Phobia Exposure + EEG</h1>
+      <p class="subtitle">Gradual exposure in virtual reality for research support<br>研究支援のためのVR段階的曝露</p>
+
+      <p>360° gradual exposure experience. Be in a safe place and, if using a VR headset, preferably seated.<br>360°段階的曝露体験。安全な場所で、VRヘッドセット使用時は座った状態を推奨します。</p>
+
+      <div class="disclaimer-box">
+        <strong>Important / 重要:</strong> This experience can be intense. It contains scenes related to phobias (spiders, enclosed spaces, heights, snakes, insects). You can stop at any time with the <strong>EMERGENCY EXIT</strong> button.<br>
+        この体験は刺激が強い場合があります。恐怖症関連のシーン（クモ、閉所、高所、ヘビ、昆虫）が含まれます。<strong>EMERGENCY EXIT</strong>ボタンでいつでも停止できます。
+      </div>
+
+      <p><strong>What will you do? / 何をしますか？</strong></p>
+      <ol class="steps-list">
+        <li>Choose a phobia from the menu / メニューから恐怖症を選択</li>
+        <li>Select an intensity level (1 = mild, 3 = strong) / 強度レベルを選択（1=軽い、3=強い）</li>
+        <li>Watch an immersive 360° video / 没入型360°動画を視聴</li>
+      </ol>
+
+      <p class="center">By continuing, you agree to participate with knowledge of the above and that usage data may be recorded for research purposes.<br>続行することで、上記を理解した上で参加し、使用データが研究目的で記録されることに同意したものとみなします。</p>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="btn-accept-2d">Accept / 同意</button>
+        <button type="button" class="btn btn-outline" id="btn-decline-2d">Deny / 拒否</button>
+      </div>
+      <button type="button" class="btn btn-vr-toggle" id="btn-view-vr">View this screen in VR / VRで見る</button>
+    </div>
+  </div>
+
+  <!-- Vista 2 (misma página): elección EEG o Phobias - 2D -->
+  <div id="choice-2d">
+    <div class="choice-card">
+      <h1>Choose mode / モードを選択</h1>
+      <p>Experiment EEG (adaptive levels) or Phobias test (choose phobia and level).<br>実験EEG（適応レベル）または恐怖症テスト（恐怖症・レベルを選択）。</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="btn-eeg-2d">Experiment EEG / 実験EEG</button>
+        <a href="menu.html" class="btn btn-outline" style="text-decoration: none;">Phobias test / 恐怖症テスト</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vista 3: experimento EEG (misma página, sin salir de VR) - 2D -->
+  <div id="experiment-select-2d">
+    <a href="#" class="back-link" id="experiment-back-2d">← Back / 戻る</a>
+    <div id="experiment-ws-status" class="ws-status disconnected">LSL/EEG: Disconnected</div>
+    <h1>EEG Experiment / 実験モード</h1>
+    <p class="subtitle" style="text-align:center; color: var(--text-muted); font-size: 0.9rem; margin-bottom: 20px;">Select a phobia. Level adapts from EEG.</p>
+    <div class="grid" id="experiment-phobia-grid"></div>
+  </div>
+
+  <video id="video360-flow" loop="false" preload="auto" playsinline muted style="display:none"></video>
+
+  <!-- Escena VR: disclaimer + choice + experiment menu + video world -->
+  <a-scene id="scene-vr" embedded background="color: #0a0e14">
+    <!-- La altura de la cámara en VR la suele fijar el headset; no la forzamos más -->
+    <a-entity id="cam-rig" position="0 1.6 0" vr-camera-height="height: 2.0">
+      <a-entity id="cam" camera look-controls position="0 0 0" camera-enable-layer-1 cursor="rayOrigin: mouse; fuse: true; fuseTimeout: 2000; fuseLength: 0.5" raycaster="objects: .clickable; far: 10; showLine: true; lineColor: #00d4ff; lineOpacity: 0.8">
+        <!-- Reticle fijo cuando no hay intersección; el cursor de A-Frame lo mueve al hacer hit -->
+        <a-entity id="reticle" position="0 0 -0.8">
+          <a-ring radius-inner="0.012" radius-outer="0.03" color="#00d4ff" material="side: double; transparent: true; opacity: 0.95; depthTest: false; depthWrite: false"></a-ring>
+          <a-circle radius="0.006" color="#fff" position="0 0 0.001" material="side: double; depthTest: false; depthWrite: false"></a-circle>
+        </a-entity>
+      </a-entity>
+      <a-entity hand-tracking-controls="hand: left; modelStyle: mesh" raycaster="objects: .clickable; far: 8" hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0"></a-entity>
+      <a-entity hand-tracking-controls="hand: right; modelStyle: mesh" raycaster="objects: .clickable; far: 8" hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0"></a-entity>
+    </a-entity>
+
+    <a-sky color="#0a0e14"></a-sky>
+
+    <!-- Panel a altura cómoda (y=3.5): arriba pero sin forzar tanto la mirada -->
+    <a-entity id="disclaimer-panel" position="0 3 -2" rotation="0 0 0">
+      <!-- Título -->
+      <a-text value="VR Phobia Exposure + EEG" anchor="center" align="center" position="0 0.95 0" width="3" color="#f0f2f5" font-size="0.22"></a-text>
+      <a-text value="Gradual exposure for research / 研究支援のためのVR段階的曝露" anchor="center" align="center" position="0 0.68 0" width="2.8" color="#a0a8b4" font-size="0.105"></a-text>
+      <!-- Aviso importante -->
+      <a-text value="Important: Intense phobia-related scenes." anchor="center" align="center" position="0 0.42 0" width="2.6" color="#fbbf24" font-size="0.095"></a-text>
+      <a-text value="Stop anytime with EMERGENCY EXIT button." anchor="center" align="center" position="0 0.28 0" width="2.6" color="#a0a8b4" font-size="0.085"></a-text>
+      <a-text value="重要: 刺激の強いシーンがあります。EMERGENCY EXITでいつでも停止可。" anchor="center" align="center" position="0 0.14 0" width="2.6" color="#6b7280" font-size="0.075"></a-text>
+      <!-- Consent -->
+      <a-text value="By continuing you agree to participate and to data recording for research." anchor="center" align="center" position="0 -0.02 0" width="2.6" color="#6b7280" font-size="0.07"></a-text>
+
+      <!-- Botones 3D: solo Accept y Deny -->
+      <a-entity id="btn-accept-vr" position="-0.5 -0.42 0" data-action="accept">
+        <a-plane width="0.72" height="0.22" color="#2d4a6e" position="0 0 -0.008" material="side: double"></a-plane>
+        <a-plane width="0.68" height="0.2" color="#5b9cf5" position="0 0 0" material="side: double" class="clickable"></a-plane>
+        <a-text value="Accept / 同意" anchor="center" align="center" position="0 0 0.02" width="0.65" color="#ffffff" font-size="0.115"></a-text>
+      </a-entity>
+      <a-entity id="btn-decline-vr" position="0.5 -0.42 0" data-action="decline">
+        <a-plane width="0.72" height="0.22" color="#1a0a0a" position="0 0 -0.008" material="side: double"></a-plane>
+        <a-plane width="0.68" height="0.2" color="#2a1515" position="0 0 0" material="side: double" class="clickable"></a-plane>
+        <a-text value="Deny / 拒否" anchor="center" align="center" position="0 0 0.02" width="0.65" color="#e5e7eb" font-size="0.115"></a-text>
+      </a-entity>
+    </a-entity>
+
+    <!-- Vista 2 VR: elección EEG o Phobias (oculta al inicio; se muestra al dar Accept) -->
+    <a-entity id="choice-panel" position="0 3.5 -2" rotation="0 0 0" visible="false">
+      <a-text value="Choose mode / モードを選択" anchor="center" align="center" position="0 0.5 0" width="3" color="#f0f2f5" font-size="0.24"></a-text>
+      <a-text value="Experiment EEG or Phobias test" anchor="center" align="center" position="0 0.25 0" width="2.8" color="#a0a8b4" font-size="0.1"></a-text>
+      <a-entity id="btn-eeg-vr" position="-0.55 -0.2 0" data-action="eeg">
+        <a-plane width="0.72" height="0.22" color="#2d4a6e" position="0 0 -0.008" material="side: double"></a-plane>
+        <a-plane width="0.68" height="0.2" color="#5b9cf5" position="0 0 0" material="side: double" class="clickable"></a-plane>
+        <a-text value="Experiment EEG" anchor="center" align="center" position="0 0 0.02" width="0.65" color="#ffffff" font-size="0.11"></a-text>
+      </a-entity>
+      <a-entity id="btn-phobias-vr" position="0.55 -0.2 0" data-action="phobias">
+        <a-plane width="0.72" height="0.22" color="#0d1117" position="0 0 -0.008" material="side: double"></a-plane>
+        <a-plane width="0.68" height="0.2" color="#1a2332" position="0 0 0" material="side: double; metalness: 0.2; roughness: 0.8" class="clickable"></a-plane>
+        <a-text value="Phobias test" anchor="center" align="center" position="0 0 0.02" width="0.6" color="#8ab4f8" font-size="0.11"></a-text>
+      </a-entity>
+    </a-entity>
+
+    <!-- Vista 3 VR: menú experimento (fobias + LSL). Se oculta al elegir fobia y se muestra el vídeo -->
+    <a-entity id="vr-experiment-menu" position="0 2.7 -2" rotation="0 0 0" visible="false" layer-over-video>
+      <a-text value="EEG Experiment / 実験モード" anchor="center" align="center" position="0 0.75 0" width="2.8" color="#f0f2f5" font-size="0.2"></a-text>
+      <a-text value="Select a phobia. Level adapts from EEG." anchor="center" align="center" position="0 0.5 0" width="2.6" color="#a0a8b4" font-size="0.09"></a-text>
+      <a-entity id="vr-ws-status-flow" position="0 0.3 0" layer-over-video>
+        <a-plane width="1.6" height="0.12" color="#1a1515" position="0 0 -0.01" material="side: double" layer-over-video></a-plane>
+        <a-text id="vr-ws-status-text-flow" value="LSL/EEG: Disconnected" anchor="center" align="center" position="0 0 0.02" width="1.5" color="#ef4444" font-size="0.07" layer-over-video></a-text>
+      </a-entity>
+      <a-entity id="vr-phobia-cards-flow" position="0 -0.1 0" layer-over-video></a-entity>
+    </a-entity>
+
+    <a-entity id="video-world-flow" position="0 -1.5 0" visible="false" layer-over-video>
+      <a-videosphere id="videosphere-flow" radius="500" rotation="0 -90 0" material="side: back; color: #111" video-texture-flow="videoId: video360-flow"></a-videosphere>
+      <a-light type="ambient" intensity="0.3"></a-light>
+    </a-entity>
+
+    <a-light type="ambient" intensity="0.7"></a-light>
+    <a-light type="directional" position="0 2 2" intensity="0.5"></a-light>
+  </a-scene>
+
+  <script src="js/logger.js"></script>
+  <script>
+    (function () {
+      var scene = document.getElementById('scene-vr');
+      var overlay = document.getElementById('disclaimer-2d');
+
+      if (window.VRPhobiaLogger) {
+        VRPhobiaLogger.init();
+        VRPhobiaLogger.sessionStart();
+      }
+
+      var disclaimer2d = document.getElementById('disclaimer-2d');
+      var choice2d = document.getElementById('choice-2d');
+      var disclaimerPanel = document.getElementById('disclaimer-panel');
+      var choicePanel = document.getElementById('choice-panel');
+      var experiment2d = document.getElementById('experiment-select-2d');
+      var vrExperimentMenu = document.getElementById('vr-experiment-menu');
+      var videoWorldFlow = document.getElementById('video-world-flow');
+      var videoFlow = document.getElementById('video360-flow');
+
+      var WS_PORT = 8765;
+      var WS_URL = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.hostname + ':' + WS_PORT;
+      var flowContentData = null;
+      var flowWs = null;
+      var flowPhobiaId = null;
+      var flowPhobiaName = null;
+      var flowCurrentLevel = 2;
+      var flowLastLevelChangeTs = 0;
+      var flowConsecutiveUp = 0;
+      var flowConsecutiveDown = 0;
+      var COOLDOWN_UP_MS = 45000;
+      var COOLDOWN_DOWN_MS = 20000;
+      var HYSTERESIS_COUNT = 2;
+
+      function setWsStatusFlow(klass, text) {
+        var el = document.getElementById('experiment-ws-status');
+        if (el) { el.className = 'ws-status ' + klass; el.textContent = text; }
+        var vrText = document.getElementById('vr-ws-status-text-flow');
+        var vrBg = document.querySelector('#vr-ws-status-flow a-plane');
+        if (vrText) vrText.setAttribute('text', 'value', text.length > 40 ? text.substring(0, 37) + '…' : text);
+        if (vrBg) vrBg.setAttribute('material', 'color', klass === 'connected' ? '#164a16' : klass === 'connecting' ? '#4a3a0a' : '#4a1515');
+        if (vrText) vrText.setAttribute('text', 'color', klass === 'connected' ? '#4ade80' : klass === 'connecting' ? '#fbbf24' : '#ef4444');
+      }
+      function connectWebSocketFlow() {
+        setWsStatusFlow('connecting', 'LSL/EEG: Connecting…');
+        try {
+          flowWs = new WebSocket(WS_URL);
+          flowWs.onopen = function () { setWsStatusFlow('connected', 'LSL/EEG: Connected'); };
+          flowWs.onmessage = function (ev) {
+            try {
+              var data = JSON.parse(ev.data);
+              if (data.type === 'adaptive_state' && flowPhobiaId) applyAdaptiveFlow(data.level_suggestion);
+              else if (data.type === 'force_level' && data.level >= 1 && data.level <= 3) loadVideoForLevelFlow(data.level, true);
+            } catch (e) {}
+          };
+          flowWs.onclose = function () { setWsStatusFlow('disconnected', 'LSL/EEG: Disconnected'); };
+          flowWs.onerror = function () { setWsStatusFlow('disconnected', 'LSL/EEG: Failed'); };
+        } catch (e) { setWsStatusFlow('disconnected', 'LSL/EEG: ' + e.message); }
+      }
+      function applyAdaptiveFlow(suggestion) {
+        if (!suggestion) return;
+        var now = Date.now();
+        if (suggestion === 'up' && flowCurrentLevel === 1 && flowConsecutiveUp >= HYSTERESIS_COUNT && (now - flowLastLevelChangeTs) >= COOLDOWN_UP_MS) {
+          flowCurrentLevel = 2; flowLastLevelChangeTs = now; flowConsecutiveUp = 0; flowConsecutiveDown = 0;
+          if (flowWs && flowWs.readyState === WebSocket.OPEN) flowWs.send(JSON.stringify({ type: 'level_change', level: 2 }));
+          loadVideoForLevelFlow(2, true);
+        } else if (suggestion === 'down' && flowCurrentLevel >= 2 && flowConsecutiveDown >= HYSTERESIS_COUNT && (now - flowLastLevelChangeTs) >= COOLDOWN_DOWN_MS) {
+          flowCurrentLevel = Math.max(1, flowCurrentLevel - 1); flowLastLevelChangeTs = now; flowConsecutiveUp = 0; flowConsecutiveDown = 0;
+          if (flowWs && flowWs.readyState === WebSocket.OPEN) flowWs.send(JSON.stringify({ type: 'level_change', level: flowCurrentLevel }));
+          loadVideoForLevelFlow(flowCurrentLevel, true);
+        } else if (suggestion === 'up') { flowConsecutiveUp++; flowConsecutiveDown = 0; } else if (suggestion === 'down') { flowConsecutiveDown++; flowConsecutiveUp = 0; } else { flowConsecutiveUp = 0; flowConsecutiveDown = 0; }
+      }
+      function getVideoUrlForLevelFlow(level, cb) {
+        if (!flowContentData || !flowPhobiaId) { cb(null); return; }
+        var phobia = flowContentData.phobias && flowContentData.phobias.find(function (p) { return p.id === flowPhobiaId; });
+        var lvl = phobia && phobia.levels && phobia.levels.find(function (l) { return l.level_number === level; });
+        cb(lvl ? lvl.video_url_360 : null);
+      }
+      function loadVideoForLevelFlow(level, autoPlay) {
+        getVideoUrlForLevelFlow(level, function (url) {
+          var fullUrl = (typeof assetUrl === 'function' ? assetUrl(url || 'assets/videos/baseline.mp4') : (url || 'assets/videos/baseline.mp4'));
+          videoFlow.setAttribute('src', fullUrl);
+          videoFlow.load();
+          window._flowForceReapply = true;
+          videoFlow.addEventListener('loadeddata', function onLoaded() {
+            videoFlow.removeEventListener('loadeddata', onLoaded);
+            if (autoPlay) { videoFlow.muted = false; videoFlow.play().catch(function () {}); }
+          }, { once: true });
+        });
+      }
+      function selectPhobiaInFlow(id, name) {
+        flowPhobiaId = id;
+        flowPhobiaName = name;
+        flowCurrentLevel = 2;
+        flowLastLevelChangeTs = Date.now();
+        flowConsecutiveUp = 0;
+        flowConsecutiveDown = 0;
+        if (flowWs && flowWs.readyState === WebSocket.OPEN) flowWs.send(JSON.stringify({ type: 'start', phobia_id: id }));
+        if (choice2d) { choice2d.style.display = 'none'; choice2d.classList.remove('active'); }
+        if (experiment2d) {
+          experiment2d.style.display = 'none';
+          experiment2d.classList.remove('active');
+          experiment2d.style.visibility = 'hidden';
+          experiment2d.style.zIndex = '-1';
+        }
+        if (vrExperimentMenu) {
+          vrExperimentMenu.setAttribute('visible', false);
+          if (vrExperimentMenu.object3D) vrExperimentMenu.object3D.visible = false;
+          vrExperimentMenu.style.display = 'none';
+        }
+        if (videoWorldFlow) {
+          videoWorldFlow.setAttribute('visible', true);
+          if (videoWorldFlow.object3D) videoWorldFlow.object3D.visible = true;
+        }
+        loadVideoForLevelFlow(2, true);
+        setTimeout(function () {
+          if (vrExperimentMenu && vrExperimentMenu.object3D) vrExperimentMenu.object3D.visible = false;
+          var cam = document.getElementById('cam');
+          if (cam && cam.components.raycaster && cam.components.raycaster.refreshObjects) cam.components.raycaster.refreshObjects();
+        }, 100);
+      }
+      function initExperimentFlow() {
+        if (flowContentData) return;
+        fetch(typeof assetUrl === 'function' ? assetUrl('data/content.json') : 'data/content.json')
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            flowContentData = data;
+            var grid = document.getElementById('experiment-phobia-grid');
+            var vrContainer = document.getElementById('vr-phobia-cards-flow');
+            var names = { arachnophobia: 'Arachnophobia', claustrophobia: 'Claustrophobia', acrophobia: 'Acrophobia', ophidiophobia: 'Ophidiophobia', entomophobia: 'Entomophobia' };
+            if (grid && data.phobias) data.phobias.forEach(function (p) {
+              var card = document.createElement('div');
+              card.className = 'phobia-card';
+              card.setAttribute('data-phobia-id', p.id);
+              card.innerHTML = '<h3>' + (names[p.id] || p.name || p.id) + '</h3>';
+              card.addEventListener('click', function () {
+                selectPhobiaInFlow(p.id, (data.phobias.find(function (x) { return x.id === p.id; }) || {}).name || p.id);
+              });
+              grid.appendChild(card);
+            });
+            if (vrContainer && data.phobias) data.phobias.forEach(function (p, idx) {
+              var row = Math.floor(idx / 3), col = idx % 3;
+              var x = (col - 1) * 0.58, y = -0.08 - row * 0.32;
+              var cardEl = document.createElement('a-entity');
+              cardEl.setAttribute('position', x + ' ' + y + ' 0');
+              cardEl.setAttribute('data-phobia-id', p.id);
+              cardEl.classList.add('clickable');
+              var back = document.createElement('a-plane');
+              back.setAttribute('width', 0.56); back.setAttribute('height', 0.26); back.setAttribute('color', '#0d1117'); back.setAttribute('position', '0 0 -0.01'); back.setAttribute('material', 'side: double');
+              var border = document.createElement('a-plane');
+              border.setAttribute('width', 0.54); border.setAttribute('height', 0.24); border.setAttribute('color', '#2d3a4a'); border.setAttribute('position', '0 0 -0.005'); border.setAttribute('material', 'side: double');
+              var front = document.createElement('a-plane');
+              front.setAttribute('width', 0.5); front.setAttribute('height', 0.22); front.setAttribute('color', '#1a2332'); front.setAttribute('position', '0 0 0'); front.setAttribute('material', 'side: double');
+              front.classList.add('clickable');
+              var label = document.createElement('a-text');
+              label.setAttribute('text', 'value', names[p.id] || p.name || p.id);
+              label.setAttribute('anchor', 'center'); label.setAttribute('align', 'center'); label.setAttribute('position', '0 0 0.02'); label.setAttribute('width', 0.48); label.setAttribute('color', '#8ab4f8'); label.setAttribute('font-size', 0.075);
+              cardEl.appendChild(back); cardEl.appendChild(border); cardEl.appendChild(front); cardEl.appendChild(label);
+              var pid = p.id, pname = (data.phobias.find(function (x) { return x.id === pid; }) || {}).name || pid;
+              function onCardClick() { selectPhobiaInFlow(pid, pname); }
+              cardEl.addEventListener('click', onCardClick);
+              front.addEventListener('click', onCardClick);
+              vrContainer.appendChild(cardEl);
+              cardEl.addEventListener('loaded', function () {
+                if (cardEl.object3D) cardEl.object3D.traverse(function (o) { if (o.layers) o.layers.set(1); });
+              });
+            });
+            connectWebSocketFlow();
+            setTimeout(function () {
+              var cam = document.getElementById('cam');
+              if (cam && cam.components.raycaster && cam.components.raycaster.refreshObjects) cam.components.raycaster.refreshObjects();
+              [].forEach.call(document.querySelectorAll('[hand-tracking-controls]'), function (hand) {
+                if (hand.components.raycaster && hand.components.raycaster.refreshObjects) hand.components.raycaster.refreshObjects();
+              });
+            }, 300);
+          })
+          .catch(function () { setWsStatusFlow('disconnected', 'LSL/EEG: No data'); });
+      }
+      function goToExperimentView() {
+        if (choice2d) { choice2d.style.display = 'none'; choice2d.classList.remove('active'); }
+        if (experiment2d) {
+          experiment2d.style.display = 'flex';
+          experiment2d.classList.add('active');
+          experiment2d.style.visibility = '';
+          experiment2d.style.zIndex = '';
+        }
+        if (choicePanel) choicePanel.setAttribute('visible', false);
+        if (vrExperimentMenu) {
+          vrExperimentMenu.setAttribute('visible', true);
+          if (vrExperimentMenu.object3D) vrExperimentMenu.object3D.visible = true;
+          vrExperimentMenu.style.display = '';
+        }
+        if (videoWorldFlow) {
+          videoWorldFlow.setAttribute('visible', false);
+          if (videoWorldFlow.object3D) videoWorldFlow.object3D.visible = false;
+        }
+        initExperimentFlow();
+        setTimeout(function () {
+          var cam = document.getElementById('cam');
+          if (cam && cam.components.raycaster && cam.components.raycaster.refreshObjects) cam.components.raycaster.refreshObjects();
+          [].forEach.call(document.querySelectorAll('[hand-tracking-controls]'), function (hand) {
+            if (hand.components.raycaster && hand.components.raycaster.refreshObjects) hand.components.raycaster.refreshObjects();
+          });
+        }, 50);
+      }
+      function goBackFromExperiment() {
+        if (experiment2d) { experiment2d.style.display = 'none'; experiment2d.classList.remove('active'); }
+        if (vrExperimentMenu) vrExperimentMenu.setAttribute('visible', false);
+        if (choice2d) { choice2d.style.display = 'flex'; choice2d.classList.add('active'); }
+        if (choicePanel) choicePanel.setAttribute('visible', true);
+      }
+
+      function goToChoice() {
+        if (window.VRPhobiaLogger) VRPhobiaLogger.consentAccepted();
+        // Misma página: cambiar vista sin recargar para no salir de VR
+        if (disclaimer2d) disclaimer2d.classList.remove('active');
+        if (disclaimer2d) disclaimer2d.style.display = 'none';
+        if (choice2d) { choice2d.classList.add('active'); choice2d.style.display = 'flex'; }
+        if (disclaimerPanel) disclaimerPanel.setAttribute('visible', false);
+        if (choicePanel) choicePanel.setAttribute('visible', true);
+        // Refrescar raycaster para que los botones de la vista 2 sean clickeables en VR
+        setTimeout(function () {
+          var cam = document.getElementById('cam');
+          if (cam && cam.components.raycaster && cam.components.raycaster.refreshObjects) cam.components.raycaster.refreshObjects();
+          [].forEach.call(document.querySelectorAll('[hand-tracking-controls]'), function (hand) {
+            if (hand.components.raycaster && hand.components.raycaster.refreshObjects) hand.components.raycaster.refreshObjects();
+          });
+        }, 50);
+      }
+      function decline() {
+        if (window.VRPhobiaLogger) VRPhobiaLogger.sessionEnd();
+        window.close();
+        if (overlay && overlay.querySelector('.disclaimer-card')) {
+          overlay.querySelector('.disclaimer-card').innerHTML = '<p style="text-align:center; color: var(--text-secondary); padding: 2rem;">You have exited. You can close this tab.<br>終了しました。このタブを閉じてください。</p>';
+        }
+      }
+
+      // —— 2D: botones del overlay ——
+      document.getElementById('btn-accept-2d').addEventListener('click', goToChoice);
+      document.getElementById('btn-decline-2d').addEventListener('click', decline);
+
+      document.getElementById('btn-view-vr').addEventListener('click', function () {
+        if (!scene || !scene.enterVR) return;
+        overlay.classList.add('hidden');
+        scene.enterVR();
+      });
+
+      // —— VR: al entrar, refrescar raycaster para que detecte los botones; al salir, mostrar overlay 2D ——
+      if (scene) {
+        scene.addEventListener('enter-vr', function () {
+          var cam = document.getElementById('cam');
+          if (cam && cam.components.raycaster && cam.components.raycaster.refreshObjects) {
+            cam.components.raycaster.refreshObjects();
+          }
+          [].forEach.call(document.querySelectorAll('[hand-tracking-controls]'), function (hand) {
+            if (hand.components.raycaster && hand.components.raycaster.refreshObjects) hand.components.raycaster.refreshObjects();
+          });
+        });
+        scene.addEventListener('exit-vr', function () {
+          var experimentMenuVisible = vrExperimentMenu && vrExperimentMenu.getAttribute('visible') !== 'false';
+          var videoWorldVisible = videoWorldFlow && videoWorldFlow.getAttribute('visible') !== 'false';
+          if (videoWorldVisible) {
+            if (disclaimer2d) disclaimer2d.style.display = 'none';
+            if (choice2d) choice2d.style.display = 'none';
+            if (experiment2d) experiment2d.style.display = 'none';
+          } else if (experimentMenuVisible) {
+            if (disclaimer2d) disclaimer2d.style.display = 'none';
+            if (choice2d) choice2d.style.display = 'none';
+            if (experiment2d) { experiment2d.style.display = 'flex'; experiment2d.classList.add('active'); }
+          } else if (choicePanel && choicePanel.getAttribute('visible') !== 'false') {
+            if (disclaimer2d) disclaimer2d.style.display = 'none';
+            if (choice2d) { choice2d.style.display = 'flex'; choice2d.classList.add('active'); }
+            if (experiment2d) experiment2d.style.display = 'none';
+          } else {
+            if (disclaimer2d) { disclaimer2d.style.display = ''; disclaimer2d.classList.remove('hidden'); }
+            if (choice2d) choice2d.style.display = 'none';
+            if (experiment2d) experiment2d.style.display = 'none';
+          }
+        });
+      }
+
+      // —— 2D: botón Experiment EEG (sin navegar) y back desde experimento ——
+      document.getElementById('btn-eeg-2d').addEventListener('click', goToExperimentView);
+      document.getElementById('experiment-back-2d').addEventListener('click', function (e) { e.preventDefault(); goBackFromExperiment(); });
+
+      // —— VR: clicks en los botones 3D ——
+      function goPhobias() { window.location.href = 'menu.html'; }
+
+      function onVrButtonClick(evt) {
+        var el = evt.target;
+        while (el && el.getAttribute && !el.getAttribute('data-action')) el = el.parentEl;
+        if (!el || !el.getAttribute('data-action')) return;
+        var action = el.getAttribute('data-action');
+        if (action === 'accept') goToChoice();
+        else if (action === 'decline') decline();
+        else if (action === 'eeg') goToExperimentView();
+        else if (action === 'phobias') goPhobias();
+      }
+      ['btn-accept-vr', 'btn-decline-vr', 'btn-eeg-vr', 'btn-phobias-vr'].forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('click', onVrButtonClick);
+          el.querySelectorAll('a-plane').forEach(function (p) { p.addEventListener('click', onVrButtonClick); });
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

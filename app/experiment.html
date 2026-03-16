@@ -6,6 +6,19 @@
   <title>VR Phobia Exposure — EEG Experiment</title>
   <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
   <script>
+    AFRAME.registerComponent('layer-over-video', {
+      init: function () {
+        var obj = this.el.object3D;
+        if (!obj) return;
+        obj.traverse(function (o) { if (o.layers) o.layers.set(1); });
+      }
+    });
+    AFRAME.registerComponent('camera-enable-layer-1', {
+      init: function () {
+        var cam = this.el.components.camera && this.el.components.camera.camera;
+        if (cam && cam.layers) cam.layers.enable(1);
+      }
+    });
     AFRAME.registerComponent('vr-camera-height', {
       schema: { minHeight: { type: 'number', default: 1.5 } },
       tick: function () {
@@ -24,6 +37,69 @@
         this.el.sceneEl.addEventListener('exit-vr', function () {
           self.el.setAttribute('position', '0 0 0');
         });
+      }
+    });
+    AFRAME.registerComponent('hand-pose-sync', {
+      tick: function () {
+        var comp = this.el.components['hand-tracking-controls'];
+        if (!comp || !comp.wristObject3D) return;
+        var wrist = comp.wristObject3D;
+        var parent = this.el.parentEl && this.el.parentEl.object3D;
+        if (!parent) return;
+        var THREE = AFRAME.THREE;
+        var pos = this._pos || (this._pos = new THREE.Vector3());
+        var quat = this._quat || (this._quat = new THREE.Quaternion());
+        var parentQuat = this._parentQuat || (this._parentQuat = new THREE.Quaternion());
+        wrist.getWorldPosition(pos);
+        parent.worldToLocal(pos);
+        this.el.object3D.position.copy(pos);
+        wrist.getWorldQuaternion(quat);
+        parent.getWorldQuaternion(parentQuat);
+        this.el.object3D.quaternion.copy(quat).premultiply(parentQuat.clone().invert());
+      }
+    });
+    AFRAME.registerComponent('hand-pinch-cursor', {
+      init: function () {
+        var self = this;
+        this.el.addEventListener('pinchended', function () {
+          var raycaster = self.el.components.raycaster;
+          if (!raycaster) return;
+          var els = raycaster.intersectedEls || (raycaster.intersections && raycaster.intersections.length ? [raycaster.intersections[0].object.el].filter(Boolean) : []);
+          var target = els[0];
+          if (!target) return;
+          while (target && !target.classList.contains('clickable')) target = target.parentEl;
+          if (target) target.emit('click');
+        });
+      }
+    });
+    AFRAME.registerComponent('hand-laser-visual', {
+      init: function () {
+        var el = this.el;
+        var rayLength = 8;
+        this.rayLength = rayLength;
+        this.lineEl = document.createElement('a-entity');
+        this.lineEl.setAttribute('geometry', 'primitive: cylinder; radius: 0.006; height: ' + rayLength);
+        this.lineEl.setAttribute('material', 'color: #00d4ff; opacity: 0.85; transparent: true');
+        this.lineEl.setAttribute('rotation', '90 0 0');
+        this.lineEl.setAttribute('position', '0 0 ' + (-rayLength / 2));
+        this.cursorEl = document.createElement('a-entity');
+        this.cursorEl.setAttribute('geometry', 'primitive: ring; radiusInner: 0.015; radiusOuter: 0.025');
+        this.cursorEl.setAttribute('material', 'color: #00d4ff; side: double');
+        this.cursorEl.setAttribute('rotation', '90 0 0');
+        this.cursorEl.setAttribute('position', '0 0 -' + rayLength);
+        el.appendChild(this.lineEl);
+        el.appendChild(this.cursorEl);
+      },
+      tick: function () {
+        var raycaster = this.el.components.raycaster;
+        if (!raycaster) return;
+        var dist = this.rayLength;
+        if (raycaster.intersections && raycaster.intersections.length > 0 && raycaster.intersections[0].distance !== undefined) {
+          dist = Math.min(raycaster.intersections[0].distance, this.rayLength);
+        }
+        this.lineEl.setAttribute('geometry', 'primitive: cylinder; radius: 0.006; height: ' + dist);
+        this.lineEl.setAttribute('position', '0 0 ' + (-dist / 2));
+        this.cursorEl.setAttribute('position', '0 0 -' + dist);
       }
     });
   </script>
@@ -125,6 +201,7 @@
         <span id="experiment-hint">Adaptive level from EEG</span>
       </div>
       <div id="hud-right">
+        <button class="hud-btn" id="btn-enter-vr" type="button" style="background: var(--accent-primary);">Enter VR / VRに入る</button>
         <button class="hud-btn hud-btn-play" id="btn-play">▶ Play</button>
         <button class="hud-btn hud-btn-pause" id="btn-pause" style="display:none">⏸ Pause</button>
         <button class="hud-btn hud-btn-menu" id="btn-menu">← End Experiment</button>
@@ -138,7 +215,24 @@
 
   <a-scene embedded background="color: #0a0a12" id="main-scene">
     <a-entity id="camera-rig" position="0 1.6 0" vr-camera-height="minHeight: 1.5">
-      <a-entity camera look-controls position="0 0 0"></a-entity>
+      <a-entity id="experiment-cam" camera look-controls position="0 0 0" camera-enable-layer-1 cursor="rayOrigin: mouse; fuse: true; fuseTimeout: 2500" raycaster="objects: .clickable; far: 15">
+        <a-entity id="video-reticle" position="0 0 -0.5" layer-over-video>
+          <a-ring radius-inner="0.012" radius-outer="0.028" color="#00d4ff" material="side: double; transparent: true; opacity: 0.95; depthTest: false; depthWrite: false"></a-ring>
+          <a-circle radius="0.006" color="#fff" position="0 0 0.001" material="side: double; depthTest: false; depthWrite: false"></a-circle>
+        </a-entity>
+      </a-entity>
+      <a-entity hand-tracking-controls="hand: left; modelStyle: mesh" raycaster="objects: .clickable; far: 8" hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0" layer-over-video></a-entity>
+      <a-entity hand-tracking-controls="hand: right; modelStyle: mesh" raycaster="objects: .clickable; far: 8" hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0" layer-over-video></a-entity>
+    </a-entity>
+    <!-- Menú VR: mismo que en navegador (fobias + indicador LSL/EEG). Altura 2.7 para no quedar muy alto -->
+    <a-entity id="vr-experiment-menu" position="0 2.7 -2" rotation="0 0 0" layer-over-video>
+      <a-text value="EEG Experiment / 実験モード" anchor="center" align="center" position="0 0.75 0" width="2.8" color="#f0f2f5" font-size="0.2"></a-text>
+      <a-text value="Select a phobia. Level adapts from EEG." anchor="center" align="center" position="0 0.5 0" width="2.6" color="#a0a8b4" font-size="0.09"></a-text>
+      <a-entity id="vr-ws-status" position="0 0.3 0">
+        <a-plane width="1.6" height="0.12" color="#1a1515" position="0 0 -0.01" material="side: double"></a-plane>
+        <a-text id="vr-ws-status-text" value="LSL/EEG: Disconnected" anchor="center" align="center" position="0 0 0.02" width="1.5" color="#ef4444" font-size="0.07"></a-text>
+      </a-entity>
+      <a-entity id="vr-phobia-cards-container" position="0 -0.1 0"></a-entity>
     </a-entity>
     <a-entity id="video-world" vr-world-offset="offsetY: -1.5">
       <a-videosphere id="videosphere" radius="500" rotation="0 -90 0" material="side: back; color: #111" video-texture-on-ready="videoId: video360"></a-videosphere>
@@ -179,6 +273,19 @@
       function setWsStatus(klass, text) {
         wsStatusEl.className = 'ws-status ' + klass;
         wsStatusEl.textContent = text;
+        var vrText = document.getElementById('vr-ws-status-text');
+        var vrBg = document.querySelector('#vr-ws-status a-plane');
+        if (vrText) vrText.setAttribute('text', 'value', text.length > 45 ? text.substring(0, 42) + '…' : text);
+        if (vrBg) {
+          if (klass === 'connected') vrBg.setAttribute('material', 'color', '#164a16');
+          else if (klass === 'connecting') vrBg.setAttribute('material', 'color', '#4a3a0a');
+          else vrBg.setAttribute('material', 'color', '#4a1515');
+        }
+        if (vrText) {
+          if (klass === 'connected') vrText.setAttribute('text', 'color', '#4ade80');
+          else if (klass === 'connecting') vrText.setAttribute('text', 'color', '#fbbf24');
+          else vrText.setAttribute('text', 'color', '#ef4444');
+        }
       }
 
       function connectWebSocket() {
@@ -370,44 +477,128 @@
       document.querySelector('a-scene').addEventListener('loaded', function () {
         var scene = document.querySelector('a-scene');
         if (scene && scene.renderer) scene.renderer.setClearColor(0x0a0a12);
+        var cam = document.getElementById('experiment-cam');
+        if (cam && cam.components.raycaster && cam.components.raycaster.refreshObjects) {
+          cam.components.raycaster.refreshObjects();
+          setTimeout(function () { if (cam.components.raycaster && cam.components.raycaster.refreshObjects) cam.components.raycaster.refreshObjects(); }, 200);
+        }
+        var params = new URLSearchParams(window.location.search);
+        if (params.get('vr') === '1' && scene.enterVR) {
+          setTimeout(function () { scene.enterVR(); }, 300);
+        }
       });
+      var sceneEl = document.querySelector('a-scene');
+      if (sceneEl) {
+        sceneEl.addEventListener('enter-vr', function () {
+          var cam = document.getElementById('experiment-cam');
+          if (cam && cam.components.raycaster && cam.components.raycaster.refreshObjects) cam.components.raycaster.refreshObjects();
+          [].forEach.call(document.querySelectorAll('[hand-tracking-controls]'), function (hand) {
+            if (hand.components.raycaster && hand.components.raycaster.refreshObjects) hand.components.raycaster.refreshObjects();
+          });
+        });
+      }
+
+      function selectPhobia(id, name) {
+        phobiaId = id;
+        phobiaName = name;
+        sendWs({ type: 'start', phobia_id: phobiaId });
+        currentLevel = 2;
+        levelIndex = 0;
+        badgeEl.textContent = 'Level 2';
+        badgeEl.classList.remove('level-1', 'level-2', 'level-3');
+        badgeEl.classList.add('level-2');
+        phobiaLabelEl.textContent = phobiaName || phobiaId;
+        selectEl.classList.add('hidden');
+        videoHud.classList.remove('hidden');
+        var vrMenu = document.getElementById('vr-experiment-menu');
+        if (vrMenu) vrMenu.setAttribute('visible', false);
+        loadVideoForLevel(2, false);
+        videoEl.addEventListener('timeupdate', updateProgress);
+        videoEl.addEventListener('loadedmetadata', updateProgress);
+        lastLevelChangeTs = Date.now();
+        consecutiveUp = 0;
+        consecutiveDown = 0;
+      }
 
       fetch(typeof assetUrl === 'function' ? assetUrl('data/content.json') : 'data/content.json')
         .then(function (r) { return r.json(); })
         .then(function (data) {
           contentData = data;
           var grid = document.getElementById('phobia-grid');
-          if (!grid || !data.phobias) return;
-          data.phobias.forEach(function (p) {
+          var vrContainer = document.getElementById('vr-phobia-cards-container');
+          if (!data.phobias) return;
+          var names = { arachnophobia: 'Arachnophobia', claustrophobia: 'Claustrophobia', acrophobia: 'Acrophobia', ophidiophobia: 'Ophidiophobia', entomophobia: 'Entomophobia' };
+          data.phobias.forEach(function (p, idx) {
             var card = document.createElement('div');
             card.className = 'phobia-card';
             card.setAttribute('data-phobia-id', p.id);
             card.innerHTML = '<h3>' + (p.name || p.id) + '</h3><div class="desc">' + (p.description || '') + '</div>';
             card.addEventListener('click', function () {
-              phobiaId = card.getAttribute('data-phobia-id');
-              phobiaName = (data.phobias.find(function (x) { return x.id === phobiaId; }) || {}).name || phobiaId;
-
-              sendWs({ type: 'start', phobia_id: phobiaId });
-
-              currentLevel = 2;
-              levelIndex = 0;
-              badgeEl.textContent = 'Level 2';
-              badgeEl.classList.remove('level-1', 'level-2', 'level-3');
-              badgeEl.classList.add('level-2');
-              phobiaLabelEl.textContent = phobiaName || phobiaId;
-
-              selectEl.classList.add('hidden');
-              videoHud.classList.remove('hidden');
-
-              loadVideoForLevel(2, false);
-              videoEl.addEventListener('timeupdate', updateProgress);
-              videoEl.addEventListener('loadedmetadata', updateProgress);
-              lastLevelChangeTs = Date.now();
-              consecutiveUp = 0;
-              consecutiveDown = 0;
+              selectPhobia(card.getAttribute('data-phobia-id'), (data.phobias.find(function (x) { return x.id === card.getAttribute('data-phobia-id'); }) || {}).name || card.getAttribute('data-phobia-id'));
             });
-            grid.appendChild(card);
+            if (grid) grid.appendChild(card);
+            if (vrContainer) {
+              var row = Math.floor(idx / 3);
+              var col = idx % 3;
+              var x = (col - 1) * 0.58;
+              var y = -0.08 - row * 0.32;
+              var cardEl = document.createElement('a-entity');
+              cardEl.setAttribute('position', x + ' ' + y + ' 0');
+              cardEl.setAttribute('data-phobia-id', p.id);
+              cardEl.classList.add('clickable');
+              var back = document.createElement('a-plane');
+              back.setAttribute('width', 0.56);
+              back.setAttribute('height', 0.26);
+              back.setAttribute('color', '#0d1117');
+              back.setAttribute('position', '0 0 -0.01');
+              back.setAttribute('material', 'side: double');
+              var border = document.createElement('a-plane');
+              border.setAttribute('width', 0.54);
+              border.setAttribute('height', 0.24);
+              border.setAttribute('color', '#2d3a4a');
+              border.setAttribute('position', '0 0 -0.005');
+              border.setAttribute('material', 'side: double');
+              var front = document.createElement('a-plane');
+              front.setAttribute('width', 0.5);
+              front.setAttribute('height', 0.22);
+              front.setAttribute('color', '#1a2332');
+              front.setAttribute('position', '0 0 0');
+              front.setAttribute('material', 'side: double');
+              front.classList.add('clickable');
+              var label = document.createElement('a-text');
+              label.setAttribute('text', 'value', names[p.id] || p.name || p.id);
+              label.setAttribute('anchor', 'center');
+              label.setAttribute('align', 'center');
+              label.setAttribute('position', '0 0 0.02');
+              label.setAttribute('width', 0.48);
+              label.setAttribute('color', '#8ab4f8');
+              label.setAttribute('font-size', 0.075);
+              cardEl.appendChild(back);
+              cardEl.appendChild(border);
+              cardEl.appendChild(front);
+              cardEl.appendChild(label);
+              var pid = p.id;
+              var pname = (data.phobias.find(function (x) { return x.id === pid; }) || {}).name || pid;
+              function onCardClick() { selectPhobia(pid, pname); }
+              cardEl.addEventListener('click', onCardClick);
+              front.addEventListener('click', onCardClick);
+              vrContainer.appendChild(cardEl);
+              cardEl.addEventListener('loaded', function () {
+                if (cardEl.object3D) cardEl.object3D.traverse(function (o) { if (o.layers) o.layers.set(1); });
+              });
+              if (cardEl.object3D) cardEl.object3D.traverse(function (o) { if (o.layers) o.layers.set(1); });
+            }
           });
+          function refreshVrRaycasters() {
+            var cam = document.getElementById('experiment-cam');
+            if (cam && cam.components.raycaster && cam.components.raycaster.refreshObjects) cam.components.raycaster.refreshObjects();
+            [].forEach.call(document.querySelectorAll('[hand-tracking-controls]'), function (hand) {
+              if (hand.components.raycaster && hand.components.raycaster.refreshObjects) hand.components.raycaster.refreshObjects();
+            });
+          }
+          if (document.querySelector('a-scene').hasLoaded) refreshVrRaycasters();
+          setTimeout(refreshVrRaycasters, 400);
+          setTimeout(refreshVrRaycasters, 1000);
         })
         .catch(function () {});
 
@@ -436,6 +627,12 @@
       document.getElementById('emergency-exit').addEventListener('click', function () {
         endExperiment('emergency');
       });
+
+      var btnEnterVr = document.getElementById('btn-enter-vr');
+      var sceneEl = document.querySelector('a-scene');
+      if (btnEnterVr && sceneEl && sceneEl.enterVR) {
+        btnEnterVr.addEventListener('click', function () { sceneEl.enterVR(); });
+      }
 
       connectWebSocket();
     })();

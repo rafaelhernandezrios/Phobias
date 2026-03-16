@@ -67,7 +67,10 @@
 <body>
   <div id="ui-overlay">
     <span id="phobia-title"><strong id="phobia-name">—</strong> — Choose level (1–3) / レベル選択（1–3）</span>
-    <button id="emergency-exit" class="btn-emergency">EMERGENCY EXIT / 緊急終了</button>
+    <div>
+      <button id="btn-enter-vr" type="button" style="display: none; padding: 8px 14px; background: var(--accent-primary); color: #fff; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-right: 8px;">Enter VR / VRに入る</button>
+      <button id="emergency-exit" class="btn-emergency">EMERGENCY EXIT / 緊急終了</button>
+    </div>
   </div>
 
   <!-- Modo 2D para nivel (por defecto, más fácil en desktop) -->
@@ -310,7 +313,15 @@
       e.preventDefault();
       level2d.classList.remove('active');
       if (levelScene) levelScene.style.display = 'block';
+      var btnVr = document.getElementById('btn-enter-vr');
+      if (btnVr) btnVr.style.display = '';
     });
+    var btnEnterVr = document.getElementById('btn-enter-vr');
+    if (btnEnterVr && levelScene) {
+      btnEnterVr.addEventListener('click', function () {
+        if (levelScene.enterVR) levelScene.enterVR();
+      });
+    }
   </script>
 </body>
 </html>
