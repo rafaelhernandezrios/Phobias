@@ -88,6 +88,9 @@
     <span id="ui-title">Choose a phobia / 恐怖症を選択</span>
     <div>
       <button id="toggle-2d" type="button">Simple menu / シンプルメニュー</button>
+      <!-- En vista VR: ir al experimento EEG (selección fobia/nivel en navegador; en VR solo el experimento, niveles con EEG) -->
+      <a href="experiment.html" id="link-eeg-vr" style="display: none; padding: 8px 14px; background: var(--accent-primary); color: #fff; border-radius: 8px; font-weight: 600; text-decoration: none; margin-right: 8px;">EEG experiment / 実験モード</a>
+      <button id="btn-enter-vr" type="button" style="display: none; padding: 8px 14px; background: var(--border-hover); color: var(--text-primary); border: none; border-radius: 8px; font-weight: 600; cursor: pointer; margin-right: 8px;">Enter VR / VRに入る</button>
       <button id="emergency-exit" class="btn-emergency">EMERGENCY EXIT / 緊急終了</button>
     </div>
   </div>
@@ -104,6 +107,7 @@
   <div id="video-hud">
     <div class="hud-row">
       <span id="video-status">Loading… / 読み込み中…</span>
+      <span class="video-hint" style="color: var(--text-muted); font-size: 0.85rem;">VR: Use HUD buttons to control. / VRではHUDボタンで操作。</span>
       <div>
         <button class="hud-btn hud-btn-play" id="btn-video-play">▶ Play / 再生</button>
         <button class="hud-btn hud-btn-pause" id="btn-video-pause" style="display:none">⏸ Pause / 一時停止</button>
@@ -121,10 +125,16 @@
     </a-assets>
 
     <a-entity id="camera-rig" position="0 1.6 0" vr-camera-height="height: 2.0">
-      <a-entity id="cam" camera look-controls wasd-controls position="0 0 0"
-        cursor="rayOrigin: mouse" raycaster="objects: .clickable"></a-entity>
-      <a-entity hand-tracking-controls="hand: left; modelStyle: mesh" raycaster="objects: .clickable; far: 5" hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0"></a-entity>
-      <a-entity hand-tracking-controls="hand: right; modelStyle: mesh" raycaster="objects: .clickable; far: 5" hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0"></a-entity>
+      <a-entity id="cam" camera look-controls wasd-controls position="0 0 0" camera-enable-layer-1
+        cursor="rayOrigin: mouse; fuse: true; fuseTimeout: 2500" raycaster="objects: .clickable; far: 15">
+        <!-- Reticle en capa 1 para dibujar encima del video -->
+        <a-entity id="video-reticle" position="0 0 -0.5" visible="false" reticle-on-top layer-over-video>
+          <a-ring radius-inner="0.012" radius-outer="0.028" color="#00d4ff" material="side: double; transparent: true; opacity: 0.95; depthTest: false; depthWrite: false"></a-ring>
+          <a-circle radius="0.006" color="#fff" position="0 0 0.001" material="side: double; depthTest: false; depthWrite: false"></a-circle>
+        </a-entity>
+      </a-entity>
+      <a-entity hand-tracking-controls="hand: left; modelStyle: mesh" raycaster="objects: .clickable; far: 5" hand-pose-sync hand-pinch-cursor hand-laser-visual hand-always-visible layer-over-video position="0 0 0"></a-entity>
+      <a-entity hand-tracking-controls="hand: right; modelStyle: mesh" raycaster="objects: .clickable; far: 5" hand-pose-sync hand-pinch-cursor hand-laser-visual hand-always-visible layer-over-video position="0 0 0"></a-entity>
     </a-entity>
 
     <a-entity id="menu-content" vr-raise-content="offsetY: 0.8">
@@ -224,7 +234,15 @@
     </a-entity>
   </a-scene>
 
-  <script src="js/vr-ui.js"></script>
+    <script>
+      window._debugLog4789dd = [];
+      window._debugSend = function(payload) {
+        window._debugLog4789dd.push(payload);
+        try { console.log('[debug-4789dd]', payload.message, payload.data || {}); } catch (e) {}
+        fetch('http://127.0.0.1:7669/ingest/4d1bafaf-811b-4191-aea0-48e25c1b589c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'4789dd'},body:JSON.stringify(Object.assign({sessionId:'4789dd',timestamp:Date.now()},payload))}).catch(function(){});
+      };
+    </script>
+    <script src="js/vr-ui.js"></script>
   <script src="js/app-base.js"></script>
   <script src="js/logger.js"></script>
   <script>
@@ -266,8 +284,16 @@
             if (!raycaster) return;
             var els = raycaster.intersectedEls || (raycaster.intersections && raycaster.intersections.length ? [raycaster.intersections[0].object.el].filter(Boolean) : []);
             var target = els[0];
-            if (!target) return;
+            if (!target) {
+              // #region agent log
+              if (window._debugSend) window._debugSend({location:'menu.html:pinch_no_target',message:'pinch_no_target',data:{intersectedElsLen:(raycaster.intersectedEls&&raycaster.intersectedEls.length)||0,intersectionsLen:(raycaster.intersections&&raycaster.intersections.length)||0},hypothesisId:'D'});
+              // #endregion
+              return;
+            }
             while (target && !target.classList.contains('clickable')) target = target.parentEl;
+            // #region agent log
+            if (window._debugSend) window._debugSend({location:'menu.html:pinch_target',message:'pinch_target',data:{targetId:target?target.id||target.getAttribute('id')||'':'',isClickable:!!(target&&target.classList&&target.classList.contains('clickable'))},hypothesisId:'D'});
+            // #endregion
             if (target) target.emit('click');
           });
         }
@@ -280,12 +306,12 @@
           this.rayLength = rayLength;
           this.lineEl = document.createElement('a-entity');
           this.lineEl.setAttribute('geometry', 'primitive: cylinder; radius: 0.006; height: ' + rayLength);
-          this.lineEl.setAttribute('material', 'color: #00d4ff; opacity: 0.85; transparent: true');
+          this.lineEl.setAttribute('material', 'color: #00d4ff; opacity: 0.85; transparent: true; depthTest: false; depthWrite: false');
           this.lineEl.setAttribute('rotation', '90 0 0');
           this.lineEl.setAttribute('position', '0 0 ' + (-rayLength / 2));
           this.cursorEl = document.createElement('a-entity');
           this.cursorEl.setAttribute('geometry', 'primitive: ring; radiusInner: 0.015; radiusOuter: 0.025');
-          this.cursorEl.setAttribute('material', 'color: #00d4ff; side: double');
+          this.cursorEl.setAttribute('material', 'color: #00d4ff; side: double; depthTest: false; depthWrite: false');
           this.cursorEl.setAttribute('rotation', '90 0 0');
           this.cursorEl.setAttribute('position', '0 0 -' + rayLength);
           el.appendChild(this.lineEl);
@@ -303,6 +329,71 @@
           this.cursorEl.setAttribute('position', '0 0 -' + dist);
         }
       });
+
+      AFRAME.registerComponent('reticle-on-top', {
+        init: function () {
+          var self = this;
+          function setRenderOrder(obj) {
+            if (obj.object3D) obj.object3D.renderOrder = 9999;
+            if (obj.object3D && obj.object3D.traverse) {
+              obj.object3D.traverse(function (o) {
+                if (o.renderOrder !== undefined) o.renderOrder = 9999;
+                if (o.material) {
+                  if (o.material.depthTest !== undefined) o.material.depthTest = false;
+                  if (o.material.depthWrite !== undefined) o.material.depthWrite = false;
+                }
+              });
+            }
+            if (obj.querySelectorAll) obj.querySelectorAll('*').forEach(setRenderOrder);
+          }
+          this.el.addEventListener('loaded', function () { setRenderOrder(self.el); });
+          setRenderOrder(this.el);
+        }
+      });
+
+      // Capa 1: dibujar encima del video (layer 0). Manos y retículo no quedan tapados por el 360.
+      AFRAME.registerComponent('layer-over-video', {
+        init: function () {
+          var obj = this.el.object3D;
+          if (!obj) return;
+          obj.traverse(function (o) {
+            if (o.layers) o.layers.set(1);
+          });
+        }
+      });
+      AFRAME.registerComponent('camera-enable-layer-1', {
+        init: function () {
+          var cam = this.el.components.camera && this.el.components.camera.camera;
+          if (cam && cam.layers) cam.layers.enable(1);
+        }
+      });
+
+      // Manos siempre visibles sobre el video 360 (depthTest: false + renderOrder alto)
+      AFRAME.registerComponent('hand-always-visible', {
+        _logged: false,
+        tick: function () {
+          var obj = this.el.object3D;
+          if (!obj) return;
+          var count = 0;
+          obj.traverse(function (o) {
+            if (o.isMesh && o.material && o.renderOrder !== 9998) {
+              var mat = Array.isArray(o.material) ? o.material : [o.material];
+              mat.forEach(function (m) {
+                if (m) { m.depthTest = false; m.depthWrite = false; }
+              });
+              o.renderOrder = 9998;
+              count++;
+            }
+          });
+          // #region agent log
+          if (count > 0 && !this._logged) {
+            this._logged = true;
+            var hand = this.el.getAttribute('hand') || (this.el.components['hand-tracking-controls'] && this.el.components['hand-tracking-controls'].data && this.el.components['hand-tracking-controls'].data.hand) || '?';
+            if (window._debugSend) window._debugSend({location:'menu.html:hand-always-visible',message:'hand_meshes_modified',data:{hand:hand,meshCount:count},hypothesisId:'F'});
+          }
+          // #endregion
+        }
+      });
     })();
     document.getElementById('emergency-exit').addEventListener('click', function () {
       if (window.VRPhobiaLogger) VRPhobiaLogger.emergencyExit(null, null, 'user_triggered');
@@ -318,11 +409,19 @@
       menu2d.classList.add('active');
       toggle2d.textContent = 'View in VR / VRで表示';
       if (scene) scene.style.display = 'none';
+      var btnVr = document.getElementById('btn-enter-vr');
+      if (btnVr) btnVr.style.display = 'none';
+      var linkEeg = document.getElementById('link-eeg-vr');
+      if (linkEeg) linkEeg.style.display = 'none';
     };
     var showVR = function () {
       menu2d.classList.remove('active');
       toggle2d.textContent = 'Simple menu / シンプルメニュー';
       if (scene) scene.style.display = 'block';
+      var btnVr = document.getElementById('btn-enter-vr');
+      if (btnVr) btnVr.style.display = '';
+      var linkEeg = document.getElementById('link-eeg-vr');
+      if (linkEeg) linkEeg.style.display = '';
     };
     if (sessionStorage.getItem('vr_was_active') === '1') {
       showVR();
@@ -334,6 +433,12 @@
     toggle2d.addEventListener('click', function () {
       if (is2DActive()) { showVR(); } else { show2D(); }
     });
+    var btnEnterVr = document.getElementById('btn-enter-vr');
+    if (btnEnterVr && scene) {
+      btnEnterVr.addEventListener('click', function () {
+        if (scene.enterVR) scene.enterVR();
+      });
+    }
 
     // Poblar grid 2D desde content.json
     fetch(typeof assetUrl === 'function' ? assetUrl('data/content.json') : 'data/content.json')
@@ -378,6 +483,8 @@
       if (levelContent) levelContent.setAttribute('visible', true);
       if (videoContent) videoContent.setAttribute('visible', false);
       if (videoHud) videoHud.classList.remove('active');
+      var reticle = document.getElementById('video-reticle');
+      if (reticle) reticle.setAttribute('visible', false);
       if (uiTitle) { uiTitle.style.display = ''; uiTitle.textContent = (phobiaName || phobiaId) + ' — Choose level (1–3) / レベル選択'; }
       levelPanelShownAt = Date.now();
     }
@@ -386,6 +493,8 @@
       if (levelContent) levelContent.setAttribute('visible', false);
       if (videoContent) videoContent.setAttribute('visible', false);
       if (videoHud) videoHud.classList.remove('active');
+      var reticle = document.getElementById('video-reticle');
+      if (reticle) reticle.setAttribute('visible', false);
       if (uiTitle) { uiTitle.style.display = ''; uiTitle.textContent = 'Choose a phobia / 恐怖症を選択'; }
     }
 
@@ -425,7 +534,17 @@
       if (levelContent) levelContent.setAttribute('visible', false);
       if (videoContent) videoContent.setAttribute('visible', true);
       if (videoHud) videoHud.classList.add('active');
+      var reticle = document.getElementById('video-reticle');
+      if (reticle) reticle.setAttribute('visible', true);
       if (uiTitle) uiTitle.style.display = 'none';
+      // #region agent log
+      if (window._debugSend) window._debugSend({location:'menu.html:showVideoPanel',message:'showVideoPanel',data:{phobiaId:phobiaId,level:level,videoContentVisible:!!(videoContent&&videoContent.getAttribute('visible')!=='false'),reticleVisible:!!(reticle&&reticle.getAttribute('visible')!=='false')},hypothesisId:'E'});
+      // #endregion
+      var cam = document.getElementById('cam');
+      if (cam && cam.components.raycaster && cam.components.raycaster.refreshObjects) {
+        cam.components.raycaster.refreshObjects();
+        setTimeout(function () { if (cam.components.raycaster && cam.components.raycaster.refreshObjects) cam.components.raycaster.refreshObjects(); }, 100);
+      }
       window._embedTextureApplied = false;
       window._embedForceReapply = true;
       if (videoStatusEl) { videoStatusEl.textContent = 'Loading… / 読み込み中…'; videoStatusEl.classList.remove('ready'); }

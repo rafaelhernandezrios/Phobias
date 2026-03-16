@@ -6,6 +6,19 @@
   <title>VR Phobia Exposure — 360° Experience</title>
   <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
   <script>
+    AFRAME.registerComponent('layer-over-video', {
+      init: function () {
+        var obj = this.el.object3D;
+        if (!obj) return;
+        obj.traverse(function (o) { if (o.layers) o.layers.set(1); });
+      }
+    });
+    AFRAME.registerComponent('camera-enable-layer-1', {
+      init: function () {
+        var cam = this.el.components.camera && this.el.components.camera.camera;
+        if (cam && cam.layers) cam.layers.enable(1);
+      }
+    });
     AFRAME.registerComponent('vr-camera-height', {
       schema: { minHeight: { type: 'number', default: 1.5 } },
       tick: function () {
@@ -88,6 +101,7 @@
         <span id="time-display">0:00 / 0:00</span>
       </div>
       <div id="hud-right">
+        <button class="hud-btn" id="btn-enter-vr" type="button" style="background: var(--accent-primary);">Enter VR / VRに入る</button>
         <button class="hud-btn hud-btn-play" id="btn-play">▶ Play / 再生</button>
         <button class="hud-btn hud-btn-pause" id="btn-pause" style="display:none">⏸ Pause / 一時停止</button>
         <button class="hud-btn hud-btn-restart" id="btn-restart">↺ Restart / 最初から</button>
@@ -101,7 +115,12 @@
 
   <a-scene embedded background="color: #0a0a12" id="main-scene">
     <a-entity id="camera-rig" position="0 1.6 0" vr-camera-height="minHeight: 1.5">
-      <a-entity camera look-controls position="0 0 0"></a-entity>
+      <a-entity id="player-cam" camera look-controls position="0 0 0" camera-enable-layer-1 cursor="rayOrigin: mouse; fuse: true; fuseTimeout: 2500" raycaster="objects: .clickable; far: 15">
+        <a-entity id="video-reticle" position="0 0 -0.5" layer-over-video>
+          <a-ring radius-inner="0.012" radius-outer="0.028" color="#00d4ff" material="side: double; transparent: true; opacity: 0.95; depthTest: false; depthWrite: false"></a-ring>
+          <a-circle radius="0.006" color="#fff" position="0 0 0.001" material="side: double; depthTest: false; depthWrite: false"></a-circle>
+        </a-entity>
+      </a-entity>
     </a-entity>
 
     <a-entity id="video-world" vr-world-offset="offsetY: -1.5">
@@ -232,6 +251,11 @@
       }
       document.querySelector('a-scene').addEventListener('loaded', function () {
         if (!setSceneDarkBackground()) setTimeout(setSceneDarkBackground, 100);
+        var cam = document.getElementById('player-cam');
+        if (cam && cam.components.raycaster && cam.components.raycaster.refreshObjects) {
+          cam.components.raycaster.refreshObjects();
+          setTimeout(function () { if (cam.components.raycaster && cam.components.raycaster.refreshObjects) cam.components.raycaster.refreshObjects(); }, 200);
+        }
         if (sessionStorage.getItem('vr_was_active') === '1') {
           sessionStorage.removeItem('vr_was_active');
           var sceneEl = document.querySelector('a-scene');
@@ -324,6 +348,12 @@
         endSession('emergency');
         window.location.href = 'index.html';
       });
+
+      var btnEnterVr = document.getElementById('btn-enter-vr');
+      var sceneEl = document.querySelector('a-scene');
+      if (btnEnterVr && sceneEl && sceneEl.enterVR) {
+        btnEnterVr.addEventListener('click', function () { sceneEl.enterVR(); });
+      }
 
       videoEl.addEventListener('play', startSession);
       videoEl.addEventListener('ended', function () {
