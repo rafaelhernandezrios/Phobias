@@ -20,6 +20,18 @@
         if (cam && cam.layers) cam.layers.enable(1);
       }
     });
+    // Asegura que el raycaster pruebe contra objetos en capa 0 y 1 (tarjetas de fobias en VR)
+    AFRAME.registerComponent('raycaster-both-layers', {
+      init: function () {
+        var self = this;
+        this.el.addEventListener('loaded', function () {
+          var rc = self.el.components.raycaster;
+          if (rc && rc.raycaster && rc.raycaster.layers) rc.raycaster.layers.enable(1);
+        });
+        var rc = this.el.components.raycaster;
+        if (rc && rc.raycaster && rc.raycaster.layers) rc.raycaster.layers.enable(1);
+      }
+    });
     AFRAME.registerComponent('vr-camera-height', {
       schema: { height: { type: 'number', default: 2.0 } },
       tick: function () {
@@ -217,11 +229,28 @@
     #choice-2d .btn-row { display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center; }
     #choice-2d .btn-row .btn { min-width: 200px; }
 
-    /* Escena VR: oculta en 2D para no tapar con canvas; se ve al entrar en VR */
+    /* Vista 3 (experimento EEG 2D): encima del canvas para que no tape una capa negra */
+    #experiment-select-2d {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      padding: clamp(1rem, 4vw, 2rem);
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      overflow-y: auto;
+    }
+    #experiment-select-2d.active { display: flex; }
+
+    /* Escena VR: detrás de las vistas 2D (z-index menor) */
     a-scene {
       display: block;
       width: 100%;
       height: 100vh;
+      position: relative;
+      z-index: 0;
     }
   </style>
 </head>
@@ -284,15 +313,15 @@
   <a-scene id="scene-vr" embedded background="color: #0a0e14">
     <!-- La altura de la cámara en VR la suele fijar el headset; no la forzamos más -->
     <a-entity id="cam-rig" position="0 1.6 0" vr-camera-height="height: 2.0">
-      <a-entity id="cam" camera look-controls position="0 0 0" camera-enable-layer-1 cursor="rayOrigin: mouse; fuse: true; fuseTimeout: 2000; fuseLength: 0.5" raycaster="objects: .clickable; far: 10; showLine: true; lineColor: #00d4ff; lineOpacity: 0.8">
+      <a-entity id="cam" camera look-controls position="0 0 0" camera-enable-layer-1 raycaster-both-layers cursor="rayOrigin: mouse; fuse: true; fuseTimeout: 2000; fuseLength: 0.5" raycaster="objects: .clickable; far: 10; showLine: true; lineColor: #00d4ff; lineOpacity: 0.8">
         <!-- Reticle fijo cuando no hay intersección; el cursor de A-Frame lo mueve al hacer hit -->
         <a-entity id="reticle" position="0 0 -0.8">
           <a-ring radius-inner="0.012" radius-outer="0.03" color="#00d4ff" material="side: double; transparent: true; opacity: 0.95; depthTest: false; depthWrite: false"></a-ring>
           <a-circle radius="0.006" color="#fff" position="0 0 0.001" material="side: double; depthTest: false; depthWrite: false"></a-circle>
         </a-entity>
       </a-entity>
-      <a-entity hand-tracking-controls="hand: left; modelStyle: mesh" raycaster="objects: .clickable; far: 8" hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0"></a-entity>
-      <a-entity hand-tracking-controls="hand: right; modelStyle: mesh" raycaster="objects: .clickable; far: 8" hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0"></a-entity>
+      <a-entity hand-tracking-controls="hand: left; modelStyle: mesh" raycaster="objects: .clickable; far: 8" raycaster-both-layers hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0"></a-entity>
+      <a-entity hand-tracking-controls="hand: right; modelStyle: mesh" raycaster="objects: .clickable; far: 8" raycaster-both-layers hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0"></a-entity>
     </a-entity>
 
     <a-sky color="#0a0e14"></a-sky>
@@ -349,7 +378,7 @@
       <a-entity id="vr-phobia-cards-flow" position="0 -0.1 0" layer-over-video></a-entity>
     </a-entity>
 
-    <a-entity id="video-world-flow" position="0 -1.5 0" visible="false" layer-over-video>
+    <a-entity id="video-world-flow" position="0 0 0" visible="false" layer-over-video>
       <a-videosphere id="videosphere-flow" radius="500" rotation="0 -90 0" material="side: back; color: #111" video-texture-flow="videoId: video360-flow"></a-videosphere>
       <a-light type="ambient" intensity="0.3"></a-light>
     </a-entity>
@@ -441,7 +470,10 @@
           var fullUrl = (typeof assetUrl === 'function' ? assetUrl(url || 'assets/videos/baseline.mp4') : (url || 'assets/videos/baseline.mp4'));
           videoFlow.setAttribute('src', fullUrl);
           videoFlow.load();
+          videoFlow.muted = false;
           window._flowForceReapply = true;
+          // Reproducir de inmediato (mismo gesto de usuario) para que el navegador no bloquee el audio
+          if (autoPlay) videoFlow.play().catch(function () {});
           videoFlow.addEventListener('loadeddata', function onLoaded() {
             videoFlow.removeEventListener('loadeddata', onLoaded);
             if (autoPlay) { videoFlow.muted = false; videoFlow.play().catch(function () {}); }
@@ -515,14 +547,20 @@
               var label = document.createElement('a-text');
               label.setAttribute('text', 'value', names[p.id] || p.name || p.id);
               label.setAttribute('anchor', 'center'); label.setAttribute('align', 'center'); label.setAttribute('position', '0 0 0.02'); label.setAttribute('width', 0.48); label.setAttribute('color', '#8ab4f8'); label.setAttribute('font-size', 0.075);
+              label.classList.add('clickable');
               cardEl.appendChild(back); cardEl.appendChild(border); cardEl.appendChild(front); cardEl.appendChild(label);
               var pid = p.id, pname = (data.phobias.find(function (x) { return x.id === pid; }) || {}).name || pid;
               function onCardClick() { selectPhobiaInFlow(pid, pname); }
               cardEl.addEventListener('click', onCardClick);
               front.addEventListener('click', onCardClick);
+              label.addEventListener('click', onCardClick);
               vrContainer.appendChild(cardEl);
               cardEl.addEventListener('loaded', function () {
-                if (cardEl.object3D) cardEl.object3D.traverse(function (o) { if (o.layers) o.layers.set(1); });
+                var cam = document.getElementById('cam');
+                if (cam && cam.components.raycaster && cam.components.raycaster.refreshObjects) cam.components.raycaster.refreshObjects();
+                [].forEach.call(document.querySelectorAll('[hand-tracking-controls]'), function (hand) {
+                  if (hand.components.raycaster && hand.components.raycaster.refreshObjects) hand.components.raycaster.refreshObjects();
+                });
               });
             });
             connectWebSocketFlow();
@@ -532,7 +570,7 @@
               [].forEach.call(document.querySelectorAll('[hand-tracking-controls]'), function (hand) {
                 if (hand.components.raycaster && hand.components.raycaster.refreshObjects) hand.components.raycaster.refreshObjects();
               });
-            }, 300);
+            }, 500);
           })
           .catch(function () { setWsStatusFlow('disconnected', 'LSL/EEG: No data'); });
       }
@@ -544,10 +582,21 @@
           experiment2d.style.visibility = '';
           experiment2d.style.zIndex = '';
         }
-        if (choicePanel) choicePanel.setAttribute('visible', false);
+        // Ocultar "Choose mode" y moverlo lejos para que no intercepte el raycaster en VR
+        if (choicePanel) {
+          choicePanel.setAttribute('visible', false);
+          choicePanel.setAttribute('position', '0 -50 -100');
+          if (choicePanel.object3D) {
+            choicePanel.object3D.visible = false;
+            choicePanel.object3D.traverse(function (o) { o.visible = false; });
+          }
+        }
         if (vrExperimentMenu) {
           vrExperimentMenu.setAttribute('visible', true);
-          if (vrExperimentMenu.object3D) vrExperimentMenu.object3D.visible = true;
+          if (vrExperimentMenu.object3D) {
+            vrExperimentMenu.object3D.visible = true;
+            vrExperimentMenu.object3D.traverse(function (o) { o.visible = true; });
+          }
           vrExperimentMenu.style.display = '';
         }
         if (videoWorldFlow) {
@@ -565,13 +614,27 @@
       }
       function goBackFromExperiment() {
         if (experiment2d) { experiment2d.style.display = 'none'; experiment2d.classList.remove('active'); }
-        if (vrExperimentMenu) vrExperimentMenu.setAttribute('visible', false);
+        if (vrExperimentMenu) {
+          vrExperimentMenu.setAttribute('visible', false);
+          if (vrExperimentMenu.object3D) vrExperimentMenu.object3D.visible = false;
+        }
         if (choice2d) { choice2d.style.display = 'flex'; choice2d.classList.add('active'); }
-        if (choicePanel) choicePanel.setAttribute('visible', true);
+        if (choicePanel) {
+          choicePanel.setAttribute('position', '0 3.5 -2');
+          choicePanel.setAttribute('visible', true);
+          if (choicePanel.object3D) {
+            choicePanel.object3D.visible = true;
+            choicePanel.object3D.traverse(function (o) { o.visible = true; });
+          }
+        }
       }
 
+      var consentAlreadyLogged = false;
       function goToChoice() {
-        if (window.VRPhobiaLogger) VRPhobiaLogger.consentAccepted();
+        if (window.VRPhobiaLogger && !consentAlreadyLogged) {
+          consentAlreadyLogged = true;
+          VRPhobiaLogger.consentAccepted();
+        }
         // Misma página: cambiar vista sin recargar para no salir de VR
         if (disclaimer2d) disclaimer2d.classList.remove('active');
         if (disclaimer2d) disclaimer2d.style.display = 'none';
@@ -589,10 +652,11 @@
       }
       function decline() {
         if (window.VRPhobiaLogger) VRPhobiaLogger.sessionEnd();
-        window.close();
         if (overlay && overlay.querySelector('.disclaimer-card')) {
           overlay.querySelector('.disclaimer-card').innerHTML = '<p style="text-align:center; color: var(--text-secondary); padding: 2rem;">You have exited. You can close this tab.<br>終了しました。このタブを閉じてください。</p>';
         }
+        // Solo intentar cerrar si esta ventana fue abierta por script (evita el aviso del navegador)
+        try { if (window.opener) window.close(); } catch (e) {}
       }
 
       // —— 2D: botones del overlay ——
