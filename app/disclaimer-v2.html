@@ -101,19 +101,33 @@
         this.cursorEl.setAttribute('position', '0 0 -' + dist);
       }
     });
+    // Igual que en el test (player/menu): una sola textura/material, solo needsUpdate al cambiar de vídeo (evita parpadeo/malla negra)
     AFRAME.registerComponent('video-texture-flow', {
       schema: { videoId: { default: 'video360-flow' } },
       _lastTime: -1,
+      _textureCreated: false,
       tick: function () {
         var video = document.getElementById(this.data.videoId);
         var mesh = this.el.getObject3D('mesh');
-        if (mesh && mesh.material && mesh.material.map && video && !video.paused) {
-          var t = video.currentTime;
-          if (t !== this._lastTime) { this._lastTime = t; mesh.material.map.needsUpdate = true; }
+        if (!video || !mesh) return;
+        // Si ya tenemos material con VideoTexture, solo actualizar cuando haya nuevo frame (nunca dispose = no parpadeo)
+        if (mesh.material && mesh.material.map && mesh.material.map.isVideoTexture) {
+          if (window._flowForceReapply && video.readyState >= 2) {
+            window._flowTextureApplied = true;
+            window._flowForceReapply = false;
+            mesh.material.map.needsUpdate = true;
+            this.el.setAttribute('visible', true);
+            video.muted = false;
+            video.play().catch(function () {});
+          } else if (video && !video.paused) {
+            var t = video.currentTime;
+            if (t !== this._lastTime) { this._lastTime = t; mesh.material.map.needsUpdate = true; }
+          }
+          return;
         }
+        // Primera vez o sin textura: crear una sola vez cuando el vídeo tenga datos
         if (window._flowTextureApplied && !window._flowForceReapply) return;
-        if (!video || video.readyState < 2) return;
-        if (!mesh) return;
+        if (video.readyState < 2) return;
         var THREE = AFRAME.THREE;
         if (!THREE) return;
         var tex = new THREE.VideoTexture(video);
@@ -124,8 +138,10 @@
         var mat = new THREE.MeshBasicMaterial({ map: tex, color: 0xffffff, side: THREE.BackSide, depthWrite: true, depthTest: true });
         if (mesh.material && mesh.material.dispose) mesh.material.dispose();
         mesh.material = mat;
+        this._textureCreated = true;
         window._flowTextureApplied = true;
         window._flowForceReapply = false;
+        this.el.setAttribute('visible', true); // mostrar solo cuando hay textura de vídeo (evita malla negra)
         video.muted = false;
         video.play().catch(function () {});
       }
@@ -324,7 +340,7 @@
       <a-entity hand-tracking-controls="hand: right; modelStyle: mesh" raycaster="objects: .clickable; far: 8" raycaster-both-layers hand-pose-sync hand-pinch-cursor hand-laser-visual position="0 0 0"></a-entity>
     </a-entity>
 
-    <a-sky color="#0a0e14"></a-sky>
+    <a-sky id="scene-sky" color="#0a0e14"></a-sky>
 
     <!-- Panel a altura cómoda (y=3.5): arriba pero sin forzar tanto la mirada -->
     <a-entity id="disclaimer-panel" position="0 3 -2" rotation="0 0 0">
@@ -379,7 +395,8 @@
     </a-entity>
 
     <a-entity id="video-world-flow" position="0 0 0" visible="false" layer-over-video>
-      <a-videosphere id="videosphere-flow" radius="500" rotation="0 -90 0" material="side: back; color: #111" video-texture-flow="videoId: video360-flow"></a-videosphere>
+      <!-- visible="false" hasta que la textura del vídeo esté aplicada; así solo se ve el vídeo, no la malla negra -->
+      <a-videosphere id="videosphere-flow" radius="500" rotation="0 -90 0" visible="false" material="side: back; color: #111" video-texture-flow="videoId: video360-flow"></a-videosphere>
       <a-light type="ambient" intensity="0.3"></a-light>
     </a-entity>
 
@@ -468,6 +485,8 @@
       function loadVideoForLevelFlow(level, autoPlay) {
         getVideoUrlForLevelFlow(level, function (url) {
           var fullUrl = (typeof assetUrl === 'function' ? assetUrl(url || 'assets/videos/baseline.mp4') : (url || 'assets/videos/baseline.mp4'));
+          var videosphereEl = document.getElementById('videosphere-flow');
+          if (videosphereEl) videosphereEl.setAttribute('visible', false);
           videoFlow.setAttribute('src', fullUrl);
           videoFlow.load();
           videoFlow.muted = false;
@@ -504,6 +523,13 @@
           videoWorldFlow.setAttribute('visible', true);
           if (videoWorldFlow.object3D) videoWorldFlow.object3D.visible = true;
         }
+        // Sin HUD en vista de vídeo: quitar reticle y línea del cursor; ocultar cielo para evitar parpadeo al mover la cabeza (z-fighting)
+        var reticle = document.getElementById('reticle');
+        var sceneSky = document.getElementById('scene-sky');
+        var cam = document.getElementById('cam');
+        if (reticle) reticle.setAttribute('visible', false);
+        if (sceneSky) sceneSky.setAttribute('visible', false);
+        if (cam && cam.getAttribute('raycaster')) cam.setAttribute('raycaster', { showLine: false });
         loadVideoForLevelFlow(2, true);
         setTimeout(function () {
           if (vrExperimentMenu && vrExperimentMenu.object3D) vrExperimentMenu.object3D.visible = false;
@@ -603,6 +629,13 @@
           videoWorldFlow.setAttribute('visible', false);
           if (videoWorldFlow.object3D) videoWorldFlow.object3D.visible = false;
         }
+        // Restaurar HUD y cielo al salir de la vista de vídeo / al entrar al menú experimento
+        var reticle = document.getElementById('reticle');
+        var sceneSky = document.getElementById('scene-sky');
+        var cam = document.getElementById('cam');
+        if (reticle) reticle.setAttribute('visible', true);
+        if (sceneSky) sceneSky.setAttribute('visible', true);
+        if (cam && cam.getAttribute('raycaster')) cam.setAttribute('raycaster', { showLine: true });
         initExperimentFlow();
         setTimeout(function () {
           var cam = document.getElementById('cam');
@@ -618,6 +651,16 @@
           vrExperimentMenu.setAttribute('visible', false);
           if (vrExperimentMenu.object3D) vrExperimentMenu.object3D.visible = false;
         }
+        if (videoWorldFlow) {
+          videoWorldFlow.setAttribute('visible', false);
+          if (videoWorldFlow.object3D) videoWorldFlow.object3D.visible = false;
+        }
+        var reticle = document.getElementById('reticle');
+        var sceneSky = document.getElementById('scene-sky');
+        var cam = document.getElementById('cam');
+        if (reticle) reticle.setAttribute('visible', true);
+        if (sceneSky) sceneSky.setAttribute('visible', true);
+        if (cam && cam.getAttribute('raycaster')) cam.setAttribute('raycaster', { showLine: true });
         if (choice2d) { choice2d.style.display = 'flex'; choice2d.classList.add('active'); }
         if (choicePanel) {
           choicePanel.setAttribute('position', '0 3.5 -2');
