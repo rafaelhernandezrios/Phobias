@@ -5,6 +5,10 @@ key.pem
 # No subir vídeos pesados
 assets/videos/
 *.mp4
+*.mov
+
+# Cursor / IDE
+.cursor/
 
 # EEG experiment output
 output/
