@@ -14,6 +14,7 @@ import socket
 import sys
 import threading
 from pathlib import Path
+from typing import List, Tuple
 
 try:
     import tkinter as tk
@@ -33,6 +34,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 WS_HOST = "127.0.0.1"
 WS_PORT = 8765
 WS_USE_SSL = False  # Set True if recorder runs with --wss (use wss:// for HTTPS)
+CONTENT_JSON = PROJECT_ROOT / "app" / "data" / "content.json"
 
 
 def get_ws_url():
@@ -83,12 +85,15 @@ class AdaptiveMonitorApp:
         self.root = tk.Tk()
         self.root.title("VR Phobia — Adaptive State Monitor")
         self.root.minsize(320, 380)
-        self.root.geometry("360x420")
+        self.root.geometry("380x520")
         self._msg_queue = queue.Queue()
         self._ws_thread = None
         self._stop_event = threading.Event()
         self._ws_conn = None
         self._level_buttons = []
+
+        self._phobias: List[Tuple[str, str]] = self._load_phobias()
+        self._phobia_var = tk.StringVar(value=(self._phobias[0][0] if self._phobias else "arachnophobia"))
 
         # State
         self.fear_index = tk.StringVar(value="—")
@@ -130,6 +135,43 @@ class AdaptiveMonitorApp:
         row("β/α Fz,Cz:", self.beta_alpha)
         row("α posterior:", self.alpha_post)
         row("FAA (F3–F4):", self.faa)
+
+        sep_sel = ttk.Separator(main, orient=tk.HORIZONTAL)
+        sep_sel.pack(fill=tk.X, pady=(12, 8))
+        ttk.Label(main, text="Controller (start/stop)", font=title_font).pack(anchor=tk.W)
+
+        sel_frame = ttk.Frame(main)
+        sel_frame.pack(fill=tk.X, pady=(6, 6))
+        ttk.Label(sel_frame, text="Phobia:", width=10).pack(side=tk.LEFT)
+        phobia_values = [f"{pid} — {pname}" for pid, pname in self._phobias] if self._phobias else ["arachnophobia — Arachnophobia"]
+        self._phobia_combo = ttk.Combobox(sel_frame, state="readonly", values=phobia_values, width=28)
+        # Map display -> id via index
+        if phobia_values:
+            self._phobia_combo.current(0)
+        self._phobia_combo.pack(side=tk.LEFT, padx=6)
+
+        btns = ttk.Frame(main)
+        btns.pack(fill=tk.X, pady=(0, 6))
+        tk.Button(
+            btns,
+            text="Start selected",
+            command=self._send_start_selected,
+            bg="#1f6f4a",
+            fg="white",
+            activebackground="#2f855a",
+            relief=tk.FLAT,
+            cursor="hand2",
+        ).pack(side=tk.LEFT, padx=4)
+        tk.Button(
+            btns,
+            text="Stop video",
+            command=self._send_stop_video,
+            bg="#7b2c2c",
+            fg="white",
+            activebackground="#9b2c2c",
+            relief=tk.FLAT,
+            cursor="hand2",
+        ).pack(side=tk.LEFT, padx=4)
 
         sep2 = ttk.Separator(main, orient=tk.HORIZONTAL)
         sep2.pack(fill=tk.X, pady=(12, 8))
@@ -216,6 +258,53 @@ class AdaptiveMonitorApp:
             self.current_level.set(str(level))
         except Exception as e:
             self.connection_status.set(f"Send failed: {e}")
+
+    def _selected_phobia_id(self) -> str:
+        try:
+            idx = int(self._phobia_combo.current())
+        except Exception:
+            idx = 0
+        if self._phobias and 0 <= idx < len(self._phobias):
+            return self._phobias[idx][0]
+        return "arachnophobia"
+
+    def _send_start_selected(self):
+        phobia_id = self._selected_phobia_id()
+        self._send_control({"type": "controller_start", "phobia_id": phobia_id})
+
+    def _send_stop_video(self):
+        self._send_control({"type": "stop_video"})
+
+    def _send_control(self, payload: dict):
+        if not HAS_WEBSOCKETS:
+            self.connection_status.set("Error: install websockets")
+            return
+        url = get_ws_url()
+        try:
+            ssl_ctx = _ssl_for_wss()
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            async def send():
+                async with websockets.connect(url, open_timeout=3, close_timeout=1, ssl=ssl_ctx) as ws:
+                    await ws.send(json.dumps(payload))
+            loop.run_until_complete(send())
+            loop.close()
+        except Exception as e:
+            self.connection_status.set(f"Send failed: {e}")
+
+    def _load_phobias(self) -> List[Tuple[str, str]]:
+        try:
+            data = json.loads(CONTENT_JSON.read_text(encoding="utf-8"))
+            phs = data.get("phobias") or []
+            out = []
+            for p in phs:
+                pid = p.get("id")
+                pname = p.get("name") or pid
+                if pid:
+                    out.append((pid, pname))
+            return out
+        except Exception:
+            return []
 
     def _on_close(self):
         self._stop_event.set()

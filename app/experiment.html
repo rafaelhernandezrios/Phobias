@@ -304,6 +304,27 @@
               } else if (data.type === 'force_level') {
                 var l = parseInt(data.level, 10);
                 if (l >= 1 && l <= 3) setLevelTo(l);
+              } else if (data.type === 'start_experiment') {
+                var pid = data.phobia_id;
+                if (!pid) return;
+                var pname = pid;
+                try {
+                  if (contentData && contentData.phobias) {
+                    var found = contentData.phobias.find(function (p) { return p.id === pid; });
+                    if (found && found.name) pname = found.name;
+                  }
+                } catch (e) {}
+                selectPhobia(pid, pname, false);
+              } else if (data.type === 'stop_video') {
+                if (videoEl) videoEl.pause();
+                var playBtn = document.getElementById('btn-play');
+                var pauseBtn = document.getElementById('btn-pause');
+                if (playBtn) playBtn.style.display = 'inline-block';
+                if (pauseBtn) pauseBtn.style.display = 'none';
+                if (statusEl) {
+                  statusEl.textContent = 'Stopped by controller';
+                  statusEl.classList.remove('ready');
+                }
               }
             } catch (e) {}
           };
@@ -498,10 +519,11 @@
         });
       }
 
-      function selectPhobia(id, name) {
+      function selectPhobia(id, name, sendStart) {
+        if (sendStart === undefined) sendStart = true;
         phobiaId = id;
         phobiaName = name;
-        sendWs({ type: 'start', phobia_id: phobiaId });
+        if (sendStart) sendWs({ type: 'start', phobia_id: phobiaId });
         currentLevel = 2;
         levelIndex = 0;
         badgeEl.textContent = 'Level 2';
@@ -534,7 +556,7 @@
             card.setAttribute('data-phobia-id', p.id);
             card.innerHTML = '<h3>' + (p.name || p.id) + '</h3><div class="desc">' + (p.description || '') + '</div>';
             card.addEventListener('click', function () {
-              selectPhobia(card.getAttribute('data-phobia-id'), (data.phobias.find(function (x) { return x.id === card.getAttribute('data-phobia-id'); }) || {}).name || card.getAttribute('data-phobia-id'));
+              selectPhobia(card.getAttribute('data-phobia-id'), (data.phobias.find(function (x) { return x.id === card.getAttribute('data-phobia-id'); }) || {}).name || card.getAttribute('data-phobia-id'), true);
             });
             if (grid) grid.appendChild(card);
             if (vrContainer) {
@@ -579,7 +601,7 @@
               cardEl.appendChild(label);
               var pid = p.id;
               var pname = (data.phobias.find(function (x) { return x.id === pid; }) || {}).name || pid;
-              function onCardClick() { selectPhobia(pid, pname); }
+              function onCardClick() { selectPhobia(pid, pname, true); }
               cardEl.addEventListener('click', onCardClick);
               front.addEventListener('click', onCardClick);
               vrContainer.appendChild(cardEl);

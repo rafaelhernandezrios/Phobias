@@ -19,10 +19,10 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 try:
-    from pylsl import StreamInlet, StreamOutlet, StreamInfo, resolve_stream
+    from pylsl import StreamInlet, StreamOutlet, StreamInfo, resolve_byprop     
 except ImportError:
     StreamOutlet = StreamInfo = None
-    from pylsl import StreamInlet, resolve_stream
+    from pylsl import StreamInlet, resolve_byprop
 
 try:
     import websockets
@@ -77,13 +77,40 @@ class EEGRecorder:
         self.lock = threading.Lock()
         self.thread = None
         self.baseline = BaselineStats() if BaselineStats else None
+        self.lsl_source_id = None
 
-    def _resolve_stream(self):
+    def _resolve_byprop(self):
         print(f"Looking for stream '{STREAM_NAME}'...")
-        streams = resolve_stream('name', STREAM_NAME)
+        streams = resolve_byprop("name", STREAM_NAME)
         if not streams:
             raise RuntimeError(f"No stream named '{STREAM_NAME}' found. Is AURA running?")
-        return streams[0]
+
+        # If multiple streams share the same name (e.g., stale/zombie simulator instances),
+        # prefer the most recently created stream, or a specific source_id if provided.
+        chosen = None
+        if self.lsl_source_id:
+            for s in streams:
+                try:
+                    if s.source_id() == self.lsl_source_id:
+                        chosen = s
+                        break
+                except Exception:
+                    continue
+
+        if chosen is None:
+            def _created_at(si):
+                try:
+                    return float(si.created_at())
+                except Exception:
+                    return -1.0
+            streams = sorted(streams, key=_created_at, reverse=True)
+            chosen = streams[0]
+
+        try:
+            print(f"Found {len(streams)} stream(s). Using source_id={chosen.source_id()!r}, uid={chosen.uid()!r}")
+        except Exception:
+            print(f"Found {len(streams)} stream(s). Using first match.")
+        return chosen
 
     def _init_channel_names(self):
         info = self.inlet.info()
@@ -103,7 +130,7 @@ class EEGRecorder:
                 break
 
     def start_lsl(self):
-        stream_info = self._resolve_stream()
+        stream_info = self._resolve_byprop()
         self.inlet = StreamInlet(stream_info)
         self._init_channel_names()
         print(f"Connected to AURA. Channels: {len(self.channel_names)}")
@@ -186,12 +213,21 @@ async def handle_websocket(websocket, path="/"):
             try:
                 data = json.loads(message)
                 msg_type = data.get("type")
-                if msg_type == "start":
+                if msg_type in ("start", "controller_start"):
                     phobia_id = data.get("phobia_id", "unknown")
                     if recorder.recording:
                         recorder.save_csv()
                         recorder.stop_recording()
                     recorder.start_recording(phobia_id)
+                    # If start came from a controller GUI, broadcast to all clients so the
+                    # experiment page can auto-select the phobia without sending "start" again.
+                    if msg_type == "controller_start":
+                        payload = json.dumps({"type": "start_experiment", "phobia_id": phobia_id})
+                        for client in list(connected_clients):
+                            try:
+                                await client.send(payload)
+                            except Exception:
+                                connected_clients.discard(client)
                     await websocket.send(json.dumps({"status": "started", "phobia_id": phobia_id}))
                 elif msg_type == "level_change":
                     level = data.get("level", 2)
@@ -207,6 +243,14 @@ async def handle_websocket(websocket, path="/"):
                         except Exception:
                             connected_clients.discard(client)
                     await websocket.send(json.dumps({"status": "manual_level_sent", "level": level}))
+                elif msg_type == "stop_video":
+                    payload = json.dumps({"type": "stop_video"})
+                    for client in list(connected_clients):
+                        try:
+                            await client.send(payload)
+                        except Exception:
+                            connected_clients.discard(client)
+                    await websocket.send(json.dumps({"status": "stop_video_sent"}))
                 elif msg_type == "stop":
                     path = recorder.save_csv()
                     recorder.stop_recording()
@@ -311,20 +355,26 @@ def run_websocket_server(use_wss=False):
                     connected_clients.discard(ws)
 
     async def run_ws():
-        async with websockets.serve(
-            handle_websocket, host, WS_PORT, ssl=ssl_ctx,
-            ping_interval=20, ping_timeout=20,
-        ):
-            print(f"WebSocket server listening on {scheme}://{host}:{WS_PORT}")
-            if use_wss:
-                print("  (HTTPS page must use wss:// - this server supports it)")
-            else:
-                print("  (If page is HTTPS, run with: python aura_recorder.py --wss)")
-            if compute_fear_engagement_index:
-                asyncio.create_task(adaptive_broadcast_loop())
-            if USE_LSL_EXTRA and manual_level_lsl_queue is not None:
-                asyncio.create_task(check_manual_level_lsl_queue())
-            await asyncio.Future()  # run forever
+        try:
+            async with websockets.serve(
+                handle_websocket, host, WS_PORT, ssl=ssl_ctx,
+                ping_interval=20, ping_timeout=20,
+            ):
+                print(f"WebSocket server listening on {scheme}://{host}:{WS_PORT}")
+                if use_wss:
+                    print("  (HTTPS page must use wss:// - this server supports it)")
+                else:
+                    print("  (If page is HTTPS, run with: python aura_recorder.py --wss)")
+                if compute_fear_engagement_index:
+                    asyncio.create_task(adaptive_broadcast_loop())
+                if USE_LSL_EXTRA and manual_level_lsl_queue is not None:
+                    asyncio.create_task(check_manual_level_lsl_queue())
+                await asyncio.Future()  # run forever
+        except OSError as e:
+            if getattr(e, "errno", None) == 48:
+                print(f"[WS] Port {WS_PORT} already in use. Stop the other process or run with: --ws-port 8766")
+                return
+            raise
 
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -345,8 +395,8 @@ def _lsl_manual_level_thread():
     """Resolve VRPhobia_ManualLevel and push received levels to manual_level_lsl_queue."""
     global manual_level_lsl_queue
     try:
-        from pylsl import resolve_stream
-        streams = resolve_stream("name", LSL_MANUAL_LEVEL_STREAM_NAME)
+        from pylsl import resolve_byprop
+        streams = resolve_byprop("name", LSL_MANUAL_LEVEL_STREAM_NAME)
         if not streams:
             print("[LSL] No stream 'VRPhobia_ManualLevel' found. Start a sender to control level via LSL.")
             return
@@ -363,10 +413,29 @@ def _lsl_manual_level_thread():
 
 
 def main(use_wss=False, use_lsl=False):
-    global USE_LSL_EXTRA, manual_level_lsl_queue
+    global USE_LSL_EXTRA, manual_level_lsl_queue, WS_PORT
     print("=== AURA EEG Recorder ===")
     print("Make sure AURA is running and streaming via LSL.")
     print()
+
+    # Optional WebSocket port override when 8765 is already used.
+    if "--ws-port" in sys.argv:
+        try:
+            idx = sys.argv.index("--ws-port")
+            WS_PORT = int(sys.argv[idx + 1])
+        except Exception:
+            print("Error: --ws-port requires an integer value")
+            sys.exit(2)
+
+    # Optional selection of a specific LSL source_id when multiple "AURA" streams exist.
+    # Usage: python aura_recorder.py --lsl-source-id AURA_SIMULATOR_xxx
+    if "--lsl-source-id" in sys.argv:
+        try:
+            idx = sys.argv.index("--lsl-source-id")
+            recorder.lsl_source_id = sys.argv[idx + 1]
+        except Exception:
+            print("Error: --lsl-source-id requires a value")
+            sys.exit(2)
 
     try:
         recorder.start_lsl()
