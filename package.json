@@ -6,7 +6,7 @@
     "cert": "node generate-cert.js",
     "serve:http": "npx --yes http-server -p 8080 -c-1",
     "serve:https": "npx --yes http-server app -p 8443 -S -c-1",
-    "experiment": "npx --yes concurrently -n web,recorder,gui -c blue,green,magenta \"npm run serve:https\" \"python scripts/aura_recorder.py --wss\" \"python scripts/adaptive_monitor_gui.py --wss\""
+    "experiment": "npx --yes concurrently -n web,recorder,gui -c blue,green,magenta \"npm run serve:https\" \"python3 scripts/aura_recorder.py --wss\" \"python3 scripts/adaptive_monitor_gui.py --wss\""
   },
   "devDependencies": {
     "concurrently": "^9.0.0",

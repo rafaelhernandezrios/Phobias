@@ -217,16 +217,23 @@ def suggest_level(
 ) -> str:
     """
     Returns "up", "hold", or "down".
-    - up: level 1 -> 2 when index in moderate range (above threshold_low, below threshold_high).
-    - down: level 2 or 3 -> lower when index too high (above threshold_high) or user reported distress.
+    - up: increase level by 1 when index is in moderate range (above threshold_low, below threshold_high).
+    - down: decrease level by 1 when index is too high (above threshold_high).
+    Works for levels 0..5 (where 0 is baseline).
     - hold: otherwise.
     """
-    if current_level == 1:
-        if threshold_low < fear_index < threshold_high:
-            return "up"
+    try:
+        cur = int(current_level)
+    except Exception:
         return "hold"
-    if current_level >= 2:
-        if fear_index >= threshold_high:
-            return "down"
-        return "hold"
+
+    cur = max(0, min(5, cur))
+
+    if fear_index >= threshold_high:
+        # If current is baseline (0) we cannot go below it.
+        return "down" if cur > 0 else "hold"
+
+    if threshold_low < fear_index < threshold_high:
+        return "up" if cur < 5 else "hold"
+
     return "hold"

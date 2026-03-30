@@ -177,9 +177,19 @@
       text-align: center;
       box-shadow: 0 20px 40px rgba(0,0,0,0.4);
     }
-    .disclaimer-card .logo {
-      font-size: clamp(2rem, 5vw, 3rem);
+    .disclaimer-card .logo-row {
+      width: 100%;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
       margin-bottom: 0.5rem;
+    }
+    .disclaimer-card .logo-row img {
+      display: block;
+      height: 44px;
+      width: auto;
+      object-fit: contain;
     }
     .disclaimer-card h1 {
       font-size: clamp(1.25rem, 2.5vw, 1.6rem);
@@ -274,7 +284,10 @@
   <!-- Vista 2D (navegador) -->
   <div id="disclaimer-2d">
     <div class="disclaimer-card">
-      <div class="logo">🌐</div>
+      <div class="logo-row">
+        <img src="assets/thumbnails/atr_logo.png" alt="ATR logo" />
+        <img src="assets/thumbnails/mirai_logo.png" alt="MIRAI logo" />
+      </div>
       <h1>VR Phobia Exposure + EEG</h1>
       <p class="subtitle">Gradual exposure in virtual reality for research support<br>研究支援のためのVR段階的曝露</p>
 
@@ -678,20 +691,13 @@
           consentAlreadyLogged = true;
           VRPhobiaLogger.consentAccepted();
         }
-        // Misma página: cambiar vista sin recargar para no salir de VR
-        if (disclaimer2d) disclaimer2d.classList.remove('active');
-        if (disclaimer2d) disclaimer2d.style.display = 'none';
-        if (choice2d) { choice2d.classList.add('active'); choice2d.style.display = 'flex'; }
-        if (disclaimerPanel) disclaimerPanel.setAttribute('visible', false);
-        if (choicePanel) choicePanel.setAttribute('visible', true);
-        // Refrescar raycaster para que los botones de la vista 2 sean clickeables en VR
-        setTimeout(function () {
-          var cam = document.getElementById('cam');
-          if (cam && cam.components.raycaster && cam.components.raycaster.refreshObjects) cam.components.raycaster.refreshObjects();
-          [].forEach.call(document.querySelectorAll('[hand-tracking-controls]'), function (hand) {
-            if (hand.components.raycaster && hand.components.raycaster.refreshObjects) hand.components.raycaster.refreshObjects();
-          });
-        }, 50);
+
+        // Nueva pantalla: ir directamente a la espera de configuración (Normal + VR).
+        // Si el usuario hizo el accept dentro de VR, conservamos VR con el querystring ?vr=1.
+        var vrActive = false;
+        try { vrActive = scene && scene.is && scene.is('vr-mode'); } catch (e) { vrActive = false; }
+        var qs = vrActive ? '?vr=1' : '';
+        window.location.href = 'experiment-wait-config.html' + qs;
       }
       function decline() {
         if (window.VRPhobiaLogger) VRPhobiaLogger.sessionEnd();

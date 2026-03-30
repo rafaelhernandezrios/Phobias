@@ -72,6 +72,7 @@ class EEGRecorder:
         self.samples_buffer = []
         self.current_label = None
         self.current_phobia_id = None
+        self.current_experiment_id = None
         self.current_level = 2
         self.recording = False
         self.lock = threading.Lock()
@@ -135,22 +136,30 @@ class EEGRecorder:
         self._init_channel_names()
         print(f"Connected to AURA. Channels: {len(self.channel_names)}")
 
-    def start_recording(self, phobia_id):
+    def start_recording(self, phobia_id, initial_level=2, experiment_id=None):
+        initial_level = int(initial_level)
+        # Levels:
+        # - 0 = baseline (relaxation/calibration for the selected phobia)
+        # - 1..5 = exposure intensity
+        initial_level = max(0, min(5, initial_level))
         with self.lock:
             self.current_phobia_id = phobia_id
-            self.current_label = f"{phobia_id}_level2"
-            self.current_level = 2
+            self.current_experiment_id = experiment_id or "session"
+            self.current_label = f"{phobia_id}_level{initial_level}"
+            self.current_level = initial_level
             self.recording = True
             self.samples_buffer = []
             if self.baseline:
                 self.baseline = BaselineStats()
         self.thread = threading.Thread(target=self._reader_thread, daemon=True)
         self.thread.start()
-        print(f"[EEG] Recording started. Label: {self.current_label}")
+        print(f"[EEG] Recording started. Label: {self.current_label} (experiment_id={self.current_experiment_id!r})")
 
     def set_level(self, level):
         if self.current_phobia_id:
-            self.current_level = int(level)
+            level = int(level)
+            level = max(0, min(5, level))
+            self.current_level = level
             new_label = f"{self.current_phobia_id}_level{level}"
             with self.lock:
                 self.current_label = new_label
@@ -163,6 +172,7 @@ class EEGRecorder:
         with self.lock:
             self.current_label = None
             self.current_phobia_id = None
+            self.current_experiment_id = None
         print("[EEG] Recording stopped.")
 
     def save_csv(self, filepath=None):
@@ -176,7 +186,8 @@ class EEGRecorder:
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         if filepath is None:
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filepath = OUTPUT_DIR / f"eeg_{self.current_phobia_id or 'session'}_{ts}.csv"
+            exp_id = self.current_experiment_id or "session"
+            filepath = OUTPUT_DIR / f"eeg_{self.current_phobia_id or 'session'}_{exp_id}_{ts}.csv"
 
         header = ["timestamp"] + self.channel_names + ["label"]
         with open(filepath, "w", newline="") as f:
@@ -203,6 +214,7 @@ class EEGRecorder:
 
 recorder = EEGRecorder()
 connected_clients = set()
+auto_adaptation_enabled = True
 
 
 async def handle_websocket(websocket, path="/"):
@@ -215,26 +227,51 @@ async def handle_websocket(websocket, path="/"):
                 msg_type = data.get("type")
                 if msg_type in ("start", "controller_start"):
                     phobia_id = data.get("phobia_id", "unknown")
+                    initial_level = data.get("level", data.get("initial_level", 2))
+                    experiment_id = data.get("experiment_id", data.get("experimentId", "session"))
+                    duration_seconds = data.get("duration_seconds", data.get("durationSeconds", None))
+                    try:
+                        initial_level = int(initial_level)
+                    except Exception:
+                        initial_level = 2
+                    try:
+                        if duration_seconds is not None:
+                            duration_seconds = float(duration_seconds)
+                    except Exception:
+                        duration_seconds = None
                     if recorder.recording:
                         recorder.save_csv()
                         recorder.stop_recording()
-                    recorder.start_recording(phobia_id)
+                    recorder.start_recording(phobia_id, initial_level=initial_level, experiment_id=experiment_id)
                     # If start came from a controller GUI, broadcast to all clients so the
                     # experiment page can auto-select the phobia without sending "start" again.
                     if msg_type == "controller_start":
-                        payload = json.dumps({"type": "start_experiment", "phobia_id": phobia_id})
+                        payload = json.dumps({
+                            "type": "start_experiment",
+                            "phobia_id": phobia_id,
+                            "phobia_name": data.get("phobia_name"),
+                            "level": initial_level,
+                            "experiment_id": experiment_id,
+                            "duration_seconds": duration_seconds,
+                        })
                         for client in list(connected_clients):
                             try:
                                 await client.send(payload)
                             except Exception:
                                 connected_clients.discard(client)
-                    await websocket.send(json.dumps({"status": "started", "phobia_id": phobia_id}))
+                    await websocket.send(json.dumps({
+                        "status": "started",
+                        "phobia_id": phobia_id,
+                        "level": recorder.current_level,
+                        "experiment_id": recorder.current_experiment_id
+                    }))
                 elif msg_type == "level_change":
                     level = data.get("level", 2)
+                    level = max(0, min(5, int(level)))
                     recorder.set_level(level)
                     await websocket.send(json.dumps({"status": "level_changed", "level": level}))
                 elif msg_type == "manual_level":
-                    level = max(1, min(3, int(data.get("level", 2))))
+                    level = max(0, min(5, int(data.get("level", 2))))
                     recorder.set_level(level)
                     payload = json.dumps({"type": "force_level", "level": level})
                     for client in list(connected_clients):
@@ -243,6 +280,17 @@ async def handle_websocket(websocket, path="/"):
                         except Exception:
                             connected_clients.discard(client)
                     await websocket.send(json.dumps({"status": "manual_level_sent", "level": level}))
+                elif msg_type == "set_auto_adaptation":
+                    enabled = bool(data.get("enabled", True))
+                    global auto_adaptation_enabled
+                    auto_adaptation_enabled = enabled
+                    payload = json.dumps({"type": "auto_adaptation_toggle", "enabled": enabled})
+                    for client in list(connected_clients):
+                        try:
+                            await client.send(payload)
+                        except Exception:
+                            connected_clients.discard(client)
+                    await websocket.send(json.dumps({"status": "auto_adaptation_updated", "enabled": enabled}))
                 elif msg_type == "stop_video":
                     payload = json.dumps({"type": "stop_video"})
                     for client in list(connected_clients):
@@ -254,6 +302,12 @@ async def handle_websocket(websocket, path="/"):
                 elif msg_type == "stop":
                     path = recorder.save_csv()
                     recorder.stop_recording()
+                    payload = json.dumps({"type": "stop_video"})
+                    for client in list(connected_clients):
+                        try:
+                            await client.send(payload)
+                        except Exception:
+                            connected_clients.discard(client)
                     await websocket.send(json.dumps({"status": "stopped", "file": path}))
                 else:
                     await websocket.send(json.dumps({"error": f"Unknown type: {msg_type}"}))
@@ -345,7 +399,7 @@ def run_websocket_server(use_wss=False):
                 level = manual_level_lsl_queue.get_nowait()
             except queue.Empty:
                 continue
-            level = max(1, min(3, int(level)))
+            level = max(0, min(5, int(level)))
             recorder.set_level(level)
             payload = json.dumps({"type": "force_level", "level": level})
             for ws in list(connected_clients):
@@ -403,7 +457,7 @@ def _lsl_manual_level_thread():
         inlet = StreamInlet(streams[0])
         while True:
             sample, _ = inlet.pull_sample(timeout=0.5)
-            if sample and len(sample) and 1 <= sample[0] <= 3:
+            if sample and len(sample) and 0 <= sample[0] <= 5:
                 try:
                     manual_level_lsl_queue.put(int(sample[0]))
                 except Exception:

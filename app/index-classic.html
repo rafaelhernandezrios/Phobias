@@ -19,9 +19,19 @@
       max-width: 540px;
       width: 100%;
     }
-    .logo {
-      font-size: 2.5rem;
+    .logo-row {
+      width: 100%;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
       margin-bottom: 0.5rem;
+    }
+    .logo-row img {
+      display: block;
+      height: 44px;
+      width: auto;
+      object-fit: contain;
     }
     h1 {
       font-size: 1.5rem;
@@ -76,7 +86,10 @@
 </head>
 <body>
   <div class="card">
-    <div class="logo">🌐</div>
+    <div class="logo-row">
+      <img src="assets/thumbnails/atr_logo.png" alt="ATR logo" />
+      <img src="assets/thumbnails/mirai_logo.png" alt="MIRAI logo" />
+    </div>
     <h1>VR Phobia Exposure + EEG</h1>
     <p class="subtitle">Gradual exposure in virtual reality for research support<br>研究支援のためのVR段階的曝露</p>
     
@@ -97,7 +110,7 @@
     
     <div class="buttons">
       <button type="button" class="btn btn-primary" id="btn-accept">Accept and enter / 同意して入る</button>
-      <a href="experiment.html" class="btn btn-outline" style="text-decoration: none;">Start EEG experiment / 実験モード</a>
+      <a href="experiment-wait-config.html" class="btn btn-outline" style="text-decoration: none;">Start EEG experiment / 実験モード</a>
       <button type="button" class="btn btn-outline" id="btn-decline">Exit / 終了</button>
     </div>
     <p style="margin-top: 1.5rem; font-size: 0.85rem;">
@@ -112,7 +125,7 @@
 
     document.getElementById('btn-accept').addEventListener('click', function () {
       VRPhobiaLogger.consentAccepted();
-      window.location.href = 'menu.html';
+      window.location.href = 'experiment-wait-config.html';
     });
 
     document.getElementById('btn-decline').addEventListener('click', function () {
