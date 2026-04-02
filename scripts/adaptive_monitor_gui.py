@@ -12,6 +12,7 @@ import json
 import queue
 import socket
 import sys
+import webbrowser
 import threading
 import time
 from pathlib import Path
@@ -34,6 +35,8 @@ except Exception:
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 WS_HOST = "127.0.0.1"
 WS_PORT = 8765
+# Same HTTPS static server as `npm run experiment` (http-server app -p 8443)
+WEB_APP_BASE_URL = "https://127.0.0.1:8443/"
 WS_USE_SSL = False  # Set True if recorder runs with --wss (use wss:// for HTTPS)
 CONTENT_JSON = PROJECT_ROOT / "app" / "data" / "content.json"
 
@@ -193,6 +196,22 @@ class AdaptiveMonitorApp:
 
         status = ttk.Label(main, textvariable=self.connection_status, foreground="gray")
         status.pack(anchor=tk.W)
+
+        web_row = ttk.Frame(main)
+        web_row.pack(fill=tk.X, pady=(6, 0))
+        ttk.Label(web_row, text="Web (browser / VR) / ウェブ:").pack(side=tk.LEFT)
+        link_font = tkfont.Font(size=10, underline=True)
+        web_link = tk.Label(
+            web_row,
+            text=WEB_APP_BASE_URL,
+            fg="#0645AD",
+            cursor="hand2",
+            font=link_font,
+        )
+        web_link.pack(side=tk.LEFT, padx=(6, 0))
+        web_link.bind("<Button-1>", lambda _e: webbrowser.open(WEB_APP_BASE_URL))
+        web_link.bind("<Enter>", lambda e: web_link.config(fg="#0B0080"))
+        web_link.bind("<Leave>", lambda e: web_link.config(fg="#0645AD"))
 
         sep = ttk.Separator(main, orient=tk.HORIZONTAL)
         sep.pack(fill=tk.X, pady=(8, 8))
