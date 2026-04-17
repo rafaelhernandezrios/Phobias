@@ -31,11 +31,13 @@ pip install -r requirements.txt
 
 (`requirements.txt`: pylsl, websockets, numpy, scipy)
 
-**Node dependencies** (for serving and experiment script):
+**Node dependencies** (for serving, experiment script, and Electron monitor):
 
 ```bash
 npm install
 ```
+
+(`postinstall` also runs `npm install` inside `monitor-electron/`.)
 
 ---
 
@@ -76,7 +78,7 @@ npm run cert
 1. **Start AURA** (or your LSL EEG device) and make sure it is streaming the stream named `AURA`.
 
 2. **Start the recorder, web server, and PC monitor.**  
-   Either use **one terminal** (recommended; the monitor GUI opens automatically):
+   Either use **one terminal** (recommended; the **Electron** monitor opens automatically):
    ```bash
    npm run experiment
    ```
@@ -108,14 +110,24 @@ See [EEG_ADAPTIVE_LEVELS.md](EEG_ADAPTIVE_LEVELS.md) for LSL stream names and us
 
 ### Option C: EEG Experiment + PC Monitor
 
-When you run **Option B** with `npm run experiment` (or `run-experiment.bat` / `run-experiment.sh`), the **PC monitor** is started automatically: a window opens with the Fear/Engagement index, level suggestion, current level, and metrics, plus **Level 1**, **Level 2**, **Level 3** buttons to change the exposure level in the participant’s scene.
+When you run **Option B** with `npm run experiment` (or `run-experiment.bat` / `run-experiment.sh`), the **Electron monitor** (`monitor-electron/`) is started automatically: metrics, start/stop, experiment ID, levels 0–5 (baseline + 1–5), adaptive mood toggle, and link to open the participant page.
 
-To run the monitor **separately** (e.g. on another machine or after starting server + recorder by hand):
+To run the monitor **separately** (after starting server + recorder by hand):
 
 ```bash
-python scripts/adaptive_monitor_gui.py --wss
+npm run monitor
 ```
-(Use `--wss` if the app is over HTTPS; use `--host` / `--port` if the recorder is on another PC.)
+
+Legacy **Tkinter** monitor (same WebSocket protocol):
+
+```bash
+npm run monitor:tk
+# or: python3 scripts/adaptive_monitor_gui.py --wss
+```
+
+If your shell sets **`ELECTRON_RUN_AS_NODE=1`**, Electron may fail to load; `npm run monitor` clears it via `cross-env`. See [monitor-electron/README.md](../monitor-electron/README.md).
+
+(Use `--wss` on the recorder if the app is over HTTPS; use `--host` / `--port` on the Python GUI if the recorder is on another PC.)
 
 ---
 

@@ -7,10 +7,12 @@ saves CSV, and sends adaptive Fear/Engagement index for level control.
 import asyncio
 import csv
 import json
+import math
 import queue
 import sys
 import threading
 import time
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 
@@ -38,18 +40,31 @@ except ImportError:
 
 # Adaptive EEG (same package when run from scripts/)
 try:
-    from config_eeg import WINDOW_SAMPLES, ADAPTIVE_UPDATE_INTERVAL_S
+    from config_eeg import (
+        ADAPTIVE_UPDATE_INTERVAL_S,
+        FEAR_ADAPT_AGGREGATE_MIN_TICKS,
+        FEAR_ADAPT_AGGREGATE_S,
+        FEAR_ADAPT_BASELINE_SAMPLES,
+        FEAR_ADAPT_DWELL_S,
+        WINDOW_SAMPLES,
+    )
     from eeg_adaptive import (
         BaselineStats,
         compute_fear_engagement_index,
-        suggest_level,
+        fear_stress_threshold,
+        tick_dwell_and_suggest,
     )
 except ImportError:
     WINDOW_SAMPLES = 1000
     ADAPTIVE_UPDATE_INTERVAL_S = 2.0
+    FEAR_ADAPT_AGGREGATE_S = 30.0
+    FEAR_ADAPT_AGGREGATE_MIN_TICKS = 10
+    FEAR_ADAPT_BASELINE_SAMPLES = 8
+    FEAR_ADAPT_DWELL_S = 30.0
     BaselineStats = None
     compute_fear_engagement_index = None
-    suggest_level = None
+    fear_stress_threshold = None
+    tick_dwell_and_suggest = None
 
 # --- Configuration ---
 WS_PORT = 8765
@@ -79,6 +94,18 @@ class EEGRecorder:
         self.thread = None
         self.baseline = BaselineStats() if BaselineStats else None
         self.lsl_source_id = None
+        # Fear-index calibration + rolling aggregate (~FEAR_ADAPT_AGGREGATE_S) for level suggestion
+        self._fear_baseline_values: list[float] = []
+        self.fear_ref_mean: float | None = None
+        self.fear_ref_std: float | None = None
+        self.fear_ref_ready = False
+        self._fear_index_ring: deque[float] = deque(
+            maxlen=max(2, int(math.ceil(FEAR_ADAPT_AGGREGATE_S / ADAPTIVE_UPDATE_INTERVAL_S)))
+        )
+        self._fear_dwell_above_s = 0.0
+        self._fear_dwell_below_s = 0.0
+        self._baseline_calibration_s = 0.0
+        self._recording_t0_monotonic: float | None = None
 
     def _resolve_byprop(self):
         print(f"Looking for stream '{STREAM_NAME}'...")
@@ -136,12 +163,17 @@ class EEGRecorder:
         self._init_channel_names()
         print(f"Connected to AURA. Channels: {len(self.channel_names)}")
 
-    def start_recording(self, phobia_id, initial_level=2, experiment_id=None):
+    def start_recording(self, phobia_id, initial_level=2, experiment_id=None, baseline_calibration_seconds=None):
         initial_level = int(initial_level)
         # Levels:
         # - 0 = baseline (relaxation/calibration for the selected phobia)
         # - 1..5 = exposure intensity
         initial_level = max(0, min(5, initial_level))
+        try:
+            bcal = float(baseline_calibration_seconds)
+        except (TypeError, ValueError):
+            bcal = 0.0
+        bcal = max(0.0, bcal)
         with self.lock:
             self.current_phobia_id = phobia_id
             self.current_experiment_id = experiment_id or "session"
@@ -151,9 +183,21 @@ class EEGRecorder:
             self.samples_buffer = []
             if self.baseline:
                 self.baseline = BaselineStats()
+            self._fear_baseline_values = []
+            self.fear_ref_mean = None
+            self.fear_ref_std = None
+            self.fear_ref_ready = False
+            self._fear_index_ring.clear()
+            self._fear_dwell_above_s = 0.0
+            self._fear_dwell_below_s = 0.0
+            self._baseline_calibration_s = bcal
+        self._recording_t0_monotonic = time.monotonic()
         self.thread = threading.Thread(target=self._reader_thread, daemon=True)
         self.thread.start()
-        print(f"[EEG] Recording started. Label: {self.current_label} (experiment_id={self.current_experiment_id!r})")
+        print(
+            f"[EEG] Recording started. Label: {self.current_label} (experiment_id={self.current_experiment_id!r}, "
+            f"baseline_calibration_s={bcal})"
+        )
 
     def set_level(self, level):
         if self.current_phobia_id:
@@ -200,16 +244,28 @@ class EEGRecorder:
         return str(filepath)
 
     def get_recent_window(self):
-        """Return last WINDOW_SAMPLES as (n, 8) float array, or None if not enough data."""
+        """Return last WINDOW_SAMPLES as (n, 8) float array.
+
+        If the incoming LSL stream provides fewer channels (e.g. front-only device with 5),
+        we pad the missing channels with NaN so adaptive EEG metrics can still be computed.
+        """
         with self.lock:
             buf = list(self.samples_buffer)
         if len(buf) < WINDOW_SAMPLES or not buf:
             return None
         recent = buf[-WINDOW_SAMPLES:]
         arr = np.array([v for _, v, _ in recent], dtype=np.float64)
-        if arr.shape[1] != 8:
-            return None
-        return arr
+        # Expected by eeg_adaptive.py: 8-channel array (F1/Fp1/Fz/Fp2/F2 + posterior channels).
+        if arr.shape[1] == 8:
+            return arr
+
+        # Front-only devices may stream only 5 electrodes.
+        if arr.shape[1] == 5:
+            padded = np.full((arr.shape[0], 8), np.nan, dtype=np.float64)
+            padded[:, :5] = arr
+            return padded
+
+        return None
 
 
 recorder = EEGRecorder()
@@ -230,6 +286,7 @@ async def handle_websocket(websocket, path="/"):
                     initial_level = data.get("level", data.get("initial_level", 2))
                     experiment_id = data.get("experiment_id", data.get("experimentId", "session"))
                     duration_seconds = data.get("duration_seconds", data.get("durationSeconds", None))
+                    session_type = data.get("session_type", data.get("sessionType", "hybrid"))
                     try:
                         initial_level = int(initial_level)
                     except Exception:
@@ -242,7 +299,17 @@ async def handle_websocket(websocket, path="/"):
                     if recorder.recording:
                         recorder.save_csv()
                         recorder.stop_recording()
-                    recorder.start_recording(phobia_id, initial_level=initial_level, experiment_id=experiment_id)
+                    bcal = data.get("baseline_calibration_seconds")
+                    try:
+                        bcal_f = float(bcal) if bcal is not None else 0.0
+                    except (TypeError, ValueError):
+                        bcal_f = 0.0
+                    recorder.start_recording(
+                        phobia_id,
+                        initial_level=initial_level,
+                        experiment_id=experiment_id,
+                        baseline_calibration_seconds=bcal_f,
+                    )
                     # If start came from a controller GUI, broadcast to all clients so the
                     # experiment page can auto-select the phobia without sending "start" again.
                     if msg_type == "controller_start":
@@ -253,6 +320,8 @@ async def handle_websocket(websocket, path="/"):
                             "level": initial_level,
                             "experiment_id": experiment_id,
                             "duration_seconds": duration_seconds,
+                            "session_type": session_type,
+                            "baseline_calibration_seconds": bcal_f,
                         })
                         for client in list(connected_clients):
                             try:
@@ -346,7 +415,7 @@ def run_websocket_server(use_wss=False):
 
     async def adaptive_broadcast_loop():
         """Every ADAPTIVE_UPDATE_INTERVAL_S, compute Fear/Engagement index and broadcast to clients."""
-        if not compute_fear_engagement_index or not recorder.baseline:
+        if not compute_fear_engagement_index or not recorder.baseline or not tick_dwell_and_suggest or not fear_stress_threshold:
             return
         while True:
             await asyncio.sleep(ADAPTIVE_UPDATE_INTERVAL_S)
@@ -363,11 +432,112 @@ def run_websocket_server(use_wss=False):
                 recorder.baseline.update(
                     _v("theta_fz"), _v("beta_alpha_fz_cz"), _v("alpha_posterior"), _v("faa"),
                 )
-                level_suggestion = suggest_level(fear_index, recorder.current_level)
+
+                def _finalize_fear_ref_buffer() -> None:
+                    vals = recorder._fear_baseline_values
+                    if not vals:
+                        recorder.fear_ref_mean = 0.0
+                        recorder.fear_ref_std = 0.1
+                    else:
+                        arr = np.asarray(vals, dtype=np.float64)
+                        recorder.fear_ref_mean = float(np.mean(arr))
+                        recorder.fear_ref_std = float(max(np.std(arr), 1e-10, 0.05))
+                    recorder.fear_ref_ready = True
+
+                bcal = float(recorder._baseline_calibration_s or 0.0)
+                t0 = recorder._recording_t0_monotonic
+                elapsed = (time.monotonic() - t0) if t0 is not None else 0.0
+                use_timed_baseline = bcal > 0.0
+
+                stress_thr = None
+                agg = None
+                level_suggestion = "hold"
+                adaptive_phase = "adaptation"
+                baseline_remaining_s = None
+
+                if use_timed_baseline:
+                    if elapsed < bcal:
+                        adaptive_phase = "calibration"
+                        baseline_remaining_s = max(0.0, bcal - elapsed)
+                        recorder._fear_baseline_values.append(float(fear_index))
+                    else:
+                        if not recorder.fear_ref_ready:
+                            _finalize_fear_ref_buffer()
+                            recorder._fear_index_ring.clear()
+                            recorder._fear_dwell_above_s = 0.0
+                            recorder._fear_dwell_below_s = 0.0
+                            if recorder.current_level == 0:
+                                recorder.set_level(1)
+                                fl = json.dumps({"type": "force_level", "level": 1})
+                                for ws in list(connected_clients):
+                                    try:
+                                        await ws.send(fl)
+                                    except Exception:
+                                        connected_clients.discard(ws)
+                                print("[Adaptive] Timed baseline done → level 1, adaptation armed.")
+                        if recorder.fear_ref_ready:
+                            recorder._fear_index_ring.append(float(fear_index))
+                            if len(recorder._fear_index_ring) >= FEAR_ADAPT_AGGREGATE_MIN_TICKS:
+                                agg = float(np.mean(np.asarray(recorder._fear_index_ring, dtype=np.float64)))
+                            if (
+                                recorder.fear_ref_mean is not None
+                                and recorder.fear_ref_std is not None
+                                and agg is not None
+                            ):
+                                stress_thr = fear_stress_threshold(
+                                    recorder.fear_ref_mean, recorder.fear_ref_std,
+                                )
+                                level_suggestion, recorder._fear_dwell_above_s, recorder._fear_dwell_below_s = (
+                                    tick_dwell_and_suggest(
+                                        agg,
+                                        recorder.current_level,
+                                        stress_thr,
+                                        recorder._fear_dwell_above_s,
+                                        recorder._fear_dwell_below_s,
+                                        ADAPTIVE_UPDATE_INTERVAL_S,
+                                        FEAR_ADAPT_DWELL_S,
+                                    )
+                                )
+                else:
+                    if not recorder.fear_ref_ready:
+                        recorder._fear_baseline_values.append(float(fear_index))
+                        if len(recorder._fear_baseline_values) >= FEAR_ADAPT_BASELINE_SAMPLES:
+                            _finalize_fear_ref_buffer()
+                    recorder._fear_index_ring.append(float(fear_index))
+                    if len(recorder._fear_index_ring) >= FEAR_ADAPT_AGGREGATE_MIN_TICKS:
+                        agg = float(np.mean(np.asarray(recorder._fear_index_ring, dtype=np.float64)))
+                    if (
+                        recorder.fear_ref_ready
+                        and recorder.fear_ref_mean is not None
+                        and recorder.fear_ref_std is not None
+                        and agg is not None
+                    ):
+                        stress_thr = fear_stress_threshold(recorder.fear_ref_mean, recorder.fear_ref_std)
+                        level_suggestion, recorder._fear_dwell_above_s, recorder._fear_dwell_below_s = (
+                            tick_dwell_and_suggest(
+                                agg,
+                                recorder.current_level,
+                                stress_thr,
+                                recorder._fear_dwell_above_s,
+                                recorder._fear_dwell_below_s,
+                                ADAPTIVE_UPDATE_INTERVAL_S,
+                                FEAR_ADAPT_DWELL_S,
+                            )
+                        )
+
                 fear_display = max(-3.0, min(3.0, fear_index))
                 payload = json.dumps({
                     "type": "adaptive_state",
                     "fear_index": round(fear_display, 4),
+                    "fear_index_aggregate": None if agg is None else round(agg, 4),
+                    "fear_ref_mean": None if recorder.fear_ref_mean is None else round(recorder.fear_ref_mean, 4),
+                    "fear_ref_std": None if recorder.fear_ref_std is None else round(recorder.fear_ref_std, 4),
+                    "fear_stress_threshold": None if stress_thr is None else round(stress_thr, 4),
+                    "dwell_above_s": round(recorder._fear_dwell_above_s, 2),
+                    "dwell_below_s": round(recorder._fear_dwell_below_s, 2),
+                    "adaptive_phase": adaptive_phase,
+                    "baseline_remaining_s": None if baseline_remaining_s is None else round(baseline_remaining_s, 1),
+                    "baseline_calibration_total_s": bcal if use_timed_baseline else None,
                     "level_suggestion": level_suggestion,
                     "current_level": recorder.current_level,
                     "metrics": {k: (round(v, 6) if isinstance(v, (int, float)) else v) for k, v in metrics.items()},

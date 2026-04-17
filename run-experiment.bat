@@ -15,6 +15,12 @@ if not exist "node_modules\" (
     echo.
 )
 
+if not exist "monitor-electron\node_modules\" (
+    echo [deps] Installing monitor-electron (Electron UI^)...
+    call npm install --prefix monitor-electron
+    echo.
+)
+
 if not exist "cert.pem" (
     echo [1/2] Generating TLS certs...
     call npm run cert
@@ -32,12 +38,12 @@ if exist ".venv\Scripts\activate.bat" (
     echo.
 )
 
-echo [2/2] Starting: HTTPS app + aura_recorder + adaptive monitor GUI
+echo [2/2] Starting: HTTPS app + aura_recorder + Electron adaptive monitor
 echo.
 echo   Browser:   https://127.0.0.1:8443
 echo   VR (LAN):  https://YOUR_IP:8443
 echo   Flow:      disclosure -^> wait for config (researcher: ID, level 0-5^)
-echo   Monitor:   Tk window (EEG, manual levels, adaptive mood^)
+echo   Monitor:   Electron window (EEG, manual levels, adaptive mood^)
 echo.
 echo   Stop: Ctrl+C
 echo.

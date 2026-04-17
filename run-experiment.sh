@@ -14,6 +14,12 @@ if [ ! -d "node_modules" ]; then
     echo
 fi
 
+if [ ! -d "monitor-electron/node_modules" ]; then
+    echo "[deps] Installing monitor-electron (Electron UI)… / Electronモニタをインストール中…"
+    npm install --prefix monitor-electron
+    echo
+fi
+
 if [ ! -f cert.pem ]; then
     echo "[1/2] Generating TLS certs… / 証明書を生成中…"
     npm run cert
@@ -28,18 +34,18 @@ if [ -f ".venv/bin/activate" ]; then
     echo "[OK] Python venv activated (.venv) / Python仮想環境を有効化"
     echo
 else
-    echo "[WARN] No .venv — recorder/GUI may miss packages. Create:"
+    echo "[WARN] No .venv — Python recorder may miss packages. Create:"
     echo "       python3 -m venv .venv && .venv/bin/pip install -r requirements.txt"
     echo
 fi
 
-echo "[2/2] Starting: HTTPS app + aura_recorder + adaptive monitor GUI"
-echo "       起動: HTTPS + レコーダ + 適応モニタGUI"
+echo "[2/2] Starting: HTTPS app + aura_recorder + Electron adaptive monitor"
+echo "       起動: HTTPS + レコーダ + Electron適応モニタ"
 echo
 echo "  Browser / ブラウザ:  https://127.0.0.1:8443"
 echo "  VR (same LAN):      https://<YOUR_IP>:8443"
 echo "  Flow / 流れ:        disclosure → wait for config (researcher sets ID, level 0–5)"
-echo "  Monitor / モニタ:   Tk window (EEG metrics, manual levels, adaptive mood)"
+echo "  Monitor / モニタ:   Electron window (EEG metrics, manual levels, adaptive mood)"
 echo
 echo "  Stop all / 停止:    Ctrl+C"
 echo

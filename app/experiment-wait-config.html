@@ -244,13 +244,12 @@
       var experimentId = null;
       var durationSeconds = null;
       var stopTimer = null;
+      var sessionType = 'hybrid';
+      var autoSequenceEnabled = false;
+      var autoSequenceTimeouts = [];
 
-      var COOLDOWN_UP_MS = 45000;
-      var COOLDOWN_DOWN_MS = 20000;
-      var HYSTERESIS_COUNT = 2;
+      var ADAPTATION_LOCK_MS = 8000;
       var lastLevelChangeTs = 0;
-      var consecutiveUp = 0;
-      var consecutiveDown = 0;
 
       function setWsStatus(klass, text) {
         if (!wsStatusEl) return;
@@ -273,6 +272,10 @@
 
       function showWaitingUI() {
         if (stopTimer) { clearTimeout(stopTimer); stopTimer = null; }
+        if (autoSequenceTimeouts && autoSequenceTimeouts.length) {
+          autoSequenceTimeouts.forEach(function (t) { try { clearTimeout(t); } catch (e) {} });
+          autoSequenceTimeouts = [];
+        }
         if (videoEl) { try { videoEl.pause(); } catch (e) {} }
         if (videoHud) videoHud.classList.add('hidden');
         if (waitingScreen) waitingScreen.classList.remove('hidden');
@@ -393,8 +396,6 @@
         if (lvl === currentLevel) return;
 
         lastLevelChangeTs = Date.now();
-        consecutiveUp = 0;
-        consecutiveDown = 0;
         currentLevel = lvl;
 
         if (badgeEl) {
@@ -420,21 +421,11 @@
         if (fearIndexEl && fearIndex != null) fearIndexEl.textContent = 'Index: ' + (Number(fearIndex).toFixed(2));
 
         var now = Date.now();
+        if ((now - lastLevelChangeTs) < ADAPTATION_LOCK_MS) return;
         if (suggestion === 'up' && currentLevel < 5) {
-          consecutiveUp++;
-          consecutiveDown = 0;
-          if (consecutiveUp >= HYSTERESIS_COUNT && (now - lastLevelChangeTs) >= COOLDOWN_UP_MS) {
-            setLevelTo(currentLevel + 1, true);
-          }
+          setLevelTo(currentLevel + 1, true);
         } else if (suggestion === 'down' && currentLevel > 0) {
-          consecutiveDown++;
-          consecutiveUp = 0;
-          if (consecutiveDown >= HYSTERESIS_COUNT && (now - lastLevelChangeTs) >= COOLDOWN_DOWN_MS) {
-            setLevelTo(currentLevel - 1, true);
-          }
-        } else {
-          consecutiveUp = 0;
-          consecutiveDown = 0;
+          setLevelTo(currentLevel - 1, true);
         }
       }
 
@@ -447,6 +438,8 @@
         phobiaName = payload && payload.phobia_name ? String(payload.phobia_name) : phobiaId;
         experimentId = payload && payload.experiment_id ? String(payload.experiment_id) : 'session';
         durationSeconds = payload && payload.duration_seconds != null ? parseFloat(payload.duration_seconds) : null;
+        sessionType = payload && payload.session_type ? String(payload.session_type) : 'hybrid';
+        autoSequenceEnabled = (sessionType === 'auto_sequence');
         if (!phobiaId) return;
 
         if (contentData) {
@@ -462,6 +455,7 @@
         var lvl = payload && payload.level != null ? parseInt(payload.level, 10) : 2;
         if (isNaN(lvl)) lvl = 2;
         lvl = Math.max(0, Math.min(5, lvl));
+        if (autoSequenceEnabled) lvl = 0; // baseline first for timed 0→5 sequence
 
         // Duration fallback: use content.json duration_seconds if present.
         if (durationSeconds == null || isNaN(durationSeconds)) {
@@ -498,6 +492,26 @@
         function doLoadAndSchedule() {
           loadVideoForLevel(currentLevel, true);
 
+          // Auto sequence: baseline(0) -> 1 -> 2 -> 3 -> 4 -> 5, evenly split by durationSeconds.
+          if (autoSequenceEnabled && durationSeconds > 0) {
+            if (autoSequenceTimeouts && autoSequenceTimeouts.length) {
+              autoSequenceTimeouts.forEach(function (t) { try { clearTimeout(t); } catch (e) {} });
+              autoSequenceTimeouts = [];
+            }
+            var segmentMs = (durationSeconds / 6) * 1000;
+            // currentLevel is 0 here.
+            for (var nextLevel = 1; nextLevel <= 5; nextLevel++) {
+              (function (lv, delayMs) {
+                var t = setTimeout(function () {
+                  // If experiment ended early, timers may still fire; best-effort guard:
+                  if (!autoSequenceEnabled) return;
+                  setLevelTo(lv, true);
+                }, delayMs);
+                autoSequenceTimeouts.push(t);
+              })(nextLevel, segmentMs * nextLevel);
+            }
+          }
+
           // Timer: auto-stop after duration_seconds (server will save CSV).
           if (stopTimer) { clearTimeout(stopTimer); stopTimer = null; }
           if (durationSeconds > 0) {
@@ -517,6 +531,11 @@
 
       function stopExperimentUI() {
         if (stopTimer) { clearTimeout(stopTimer); stopTimer = null; }
+        if (autoSequenceTimeouts && autoSequenceTimeouts.length) {
+          autoSequenceTimeouts.forEach(function (t) { try { clearTimeout(t); } catch (e) {} });
+          autoSequenceTimeouts = [];
+        }
+        autoSequenceEnabled = false;
         if (videoEl) { try { videoEl.pause(); } catch (e) {} }
         showWaitingUI();
       }
@@ -551,7 +570,11 @@
             try {
               var data = JSON.parse(ev.data);
               if (data.type === 'adaptive_state') {
-                if (autoAdaptationEnabled) applyAdaptiveSuggestion(data.level_suggestion, data.fear_index);
+                // Always show the EEG index on HUD, even if levels are auto-timed.
+                if (fearIndexEl && data.fear_index != null) {
+                  fearIndexEl.textContent = 'Index: ' + (Number(data.fear_index).toFixed(2));
+                }
+                if (autoAdaptationEnabled && !autoSequenceEnabled) applyAdaptiveSuggestion(data.level_suggestion, data.fear_index);
               } else if (data.type === 'force_level') {
                 setLevelTo(data.level, false);
               } else if (data.type === 'auto_adaptation_toggle') {

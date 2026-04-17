@@ -7,9 +7,9 @@ Web VR platform for gradual exposure to 5 phobias, with 3 levels per phobia, eve
 ## For research centers — start here
 
 1. **[Getting started](docs/GETTING_STARTED.md)** — What the repo is, prerequisites, and **step-by-step instructions** to run:
-   - **Demo (no EEG):** try the app in the browser.
-   - **Full EEG experiment:** AURA + recorder + HTTPS server; where data is saved.
-   - **With PC monitor:** view adaptive state and change level manually.
+   - **Demo (no EEG):** try the app in the browser (e.g. classic menu flow).
+   - **Full EEG experiment:** AURA + recorder + HTTPS; participant accepts disclosure and waits; **researcher** drives start/stop and parameters from the **PC monitor GUI**.
+   - **With PC monitor:** adaptive metrics, session control (ID, phobia, levels 0–5, duration), and manual overrides.
 2. **[Platform overview](docs/PLATFORM_VR_PHOBIAS.md)** — What the platform does, full flow, integrations, safety, data outputs.  
    **日本語：** [プラットフォーム概要（研究機関向け）](docs/PLATFORM_VR_PHOBIAS_JA.md)
 
@@ -19,20 +19,32 @@ Quick try (no EEG): `npm install` → `npx serve app` → open `http://localhost
 
 ## Purpose
 
-- Web VR experience: menu → choose phobia → choose level (1–3) → play 360° video.
+- Web VR experience (research-controlled EEG session **or** classic self-guided flow): 360° exposure with logging.
 - Synchronized logs: `session_id`, `phobia_id`, `level`, `video_id`, `timestamp_start/end`, `user_actions`.
-- Safety: disclaimer on landing, **EMERGENCY EXIT** button always visible.
+- Safety: disclosure on landing, **EMERGENCY EXIT** button always visible.
+
+### Default EEG experiment flow (roles) / Flujo por defecto (roles)
+
+**English.** The default entry (`index.html` → `disclaimer-v2.html`) is optimized for **lab sessions**:
+
+1. **Participant** — Reads the disclosure and taps **Accept / 同意**. They do **not** choose phobia or level in the browser for this protocol; the app opens **Waiting for configuration** (`experiment-wait-config.html`) and stays there until the researcher starts the run.
+2. **Researcher** — On the PC, runs the stack (e.g. `npm run experiment`) and uses the **Adaptive State Monitor** (Electron app in [`monitor-electron/`](monitor-electron/)): pick **Experiment** (phobia from `content.json`), **Start level** (0 = baseline through 5), **Experiment ID**, **Duration (seconds)**, then **Start experiment**. Optional: **Stop experiment**, toggle **Adaptive mood** (ON/OFF), or **Manual level** buttons to push levels to VR in real time. Legacy Tk UI: `npm run monitor:tk` or `python3 scripts/adaptive_monitor_gui.py --wss`.
+
+**Español.** La entrada por defecto está pensada para **sesión en laboratorio**: el **participante** solo **acepta el disclosure**; no configura fobia ni nivel en la web. Pasa a la pantalla **esperando configuración** y permanece ahí. El **investigador** configura e **inicia el experimento** desde el **monitor en PC** (Electron en `monitor-electron/`, o la GUI Tk heredada con `npm run monitor:tk`): fobia, nivel inicial 0–5, ID de sesión, duración, inicio/parada, modo adaptativo y niveles manuales vía WebSocket.
 
 ## Project Structure
 
 ```
 VR-ATR Phobias/
 ├── app/                      # Web app (served as root by server)
-│   ├── index.html            # Landing / Consent
-│   ├── menu.html             # VR menu: 5 phobias
+│   ├── index.html            # Redirects to disclaimer-v2 (default entry)
+│   ├── disclaimer-v2.html    # Disclosure + VR; Accept → wait for researcher config (EEG path)
+│   ├── experiment-wait-config.html  # Participant wait screen; receives start/stop from recorder/GUI
+│   ├── index-classic.html    # Classic consent → optional EEG / menu links
+│   ├── menu.html             # VR menu: 5 phobias (self-guided test)
 │   ├── level-select.html     # Level 1–3 per phobia
 │   ├── player.html           # 360° player + HUD
-│   ├── experiment.html       # EEG experiment (adaptive levels)
+│   ├── experiment.html       # Legacy/alternate EEG experiment UI (phobia pick in page)
 │   ├── css/
 │   │   └── shared.css
 │   ├── js/
@@ -44,10 +56,11 @@ VR-ATR Phobias/
 │   └── assets/
 │       ├── thumbnails/
 │       └── videos/
+├── monitor-electron/          # Electron adaptive monitor (researcher UI)
 ├── scripts/
 │   ├── aura_test.py
 │   ├── aura_recorder.py
-│   ├── adaptive_monitor_gui.py
+│   ├── adaptive_monitor_gui.py   # Legacy Tk monitor (optional)
 │   ├── config_eeg.py
 │   └── eeg_adaptive.py
 ├── docs/
@@ -72,7 +85,7 @@ VR-ATR Phobias/
    # or: npx serve ./app
    ```
 2. Open in browser: **http://localhost:3000** (or the port shown by `serve`).
-3. Flow: Accept consent → Menu (choose phobia) → Choose level → 360° player.
+3. **Default site:** Accept disclosure → **waiting for configuration** (EEG lab flow) or use **index-classic.html** / **menu.html** for self-guided: menu → level → 360° player.
 
 The HTTPS server (`npm run serve:https`) serves the `app/` folder as the site root.
 
@@ -120,14 +133,14 @@ npm run experiment
 # Terminal 2: npm run serve:https
 ```
 
-Open `https://127.0.0.1:8443` (or your PC's IP for VR) → "Start EEG experiment" → choose phobia. The **monitor window** (Fear/Engagement index + Level 1/2/3 buttons) opens automatically with `npm run experiment`. CSVs are saved in `output/`.
+Open `https://127.0.0.1:8443` (or your PC's IP for VR). **Participant:** accept disclosure → stay on **Waiting for configuration**. **Researcher:** use the **Electron monitor** (opens with `npm run experiment`): set experiment ID, phobia, start level (0–5), duration → **Start experiment**. The monitor shows Fear/Engagement metrics, adaptive suggestion, **Adaptive mood** toggle, and **manual level** 0–5. CSVs are saved in `output/`. Tk fallback: `npm run monitor:tk`. Details: [monitor-electron/README.md](monitor-electron/README.md).
 
 ## EEG Adaptive Levels
 
 - **10–20 montage:** 8 electrodes F3, F4, Fz, Cz, Pz, P3, P4, Oz (mapping in `scripts/config_eeg.py`).
 - **Fear/Engagement index:** combination of theta Fz, beta/alpha Fz–Cz, posterior alpha suppression (Pz, P3, P4, Oz), and frontal alpha asymmetry (F3–F4). Computed in `scripts/eeg_adaptive.py`.
 - The recorder sends `adaptive_state` (fear_index, level_suggestion) via WebSocket every 2 s; the experiment applies level up/hold/down with hysteresis and cooldown. **High distress** button lowers the level immediately.
-- **PC monitor:** `python scripts/adaptive_monitor_gui.py` shows adaptive state in real time and allows manual level change (Level 1/2/3). With HTTPS: `--wss`.
+- **PC monitor / controller:** `python scripts/adaptive_monitor_gui.py` shows adaptive state in real time, **starts/stops** the run (`controller_start` / `stop`) with phobia, level **0–5**, session ID and duration, toggles **auto adaptation**, and sends **manual levels** 0–5 to VR. With HTTPS: `--wss`.
 - **LSL:** with `--lsl` the recorder publishes state to **VRPhobia_State** and listens to **VRPhobia_ManualLevel** to change the scene from other apps.
 - Documentation: [docs/EEG_ADAPTIVE_LEVELS.md](docs/EEG_ADAPTIVE_LEVELS.md).
 

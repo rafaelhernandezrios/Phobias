@@ -1,0 +1,30 @@
+{
+  "name": "phobias-adaptive-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Electron monitor for VR Phobia EEG (WebSocket to aura_recorder)",
+  "main": "./bootstrap.cjs",
+  "scripts": {
+    "dev": "cross-env ELECTRON_RUN_AS_NODE= electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "start": "electron ."
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/ws": "^8.5.13",
+    "@vitejs/plugin-react": "^4.3.3",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.0",
+    "electron-vite": "^2.3.0",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11"
+  }
+}

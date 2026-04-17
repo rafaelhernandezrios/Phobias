@@ -247,17 +247,13 @@
       var WS_PORT = 8765;
       var protocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
       var WS_URL = protocol + '//' + window.location.hostname + ':' + WS_PORT;
-      var COOLDOWN_UP_MS = 45000;
-      var COOLDOWN_DOWN_MS = 20000;
-      var HYSTERESIS_COUNT = 2;
+      var ADAPTATION_LOCK_MS = 8000;
       var phobiaId = null;
       var phobiaName = null;
       var currentLevel = 2;
       var ws = null;
       var contentData = null;
       var lastLevelChangeTs = 0;
-      var consecutiveUp = 0;
-      var consecutiveDown = 0;
 
       var selectEl = document.getElementById('experiment-select');
       var videoHud = document.getElementById('video-hud');
@@ -343,8 +339,6 @@
         if (targetLevel < 1 || targetLevel > 3) return;
         currentLevel = targetLevel;
         lastLevelChangeTs = Date.now();
-        consecutiveUp = 0;
-        consecutiveDown = 0;
         sendWs({ type: 'level_change', level: currentLevel });
         badgeEl.textContent = 'Level ' + currentLevel;
         badgeEl.classList.remove('level-1', 'level-2', 'level-3');
@@ -355,21 +349,11 @@
       function applyAdaptiveSuggestion(suggestion, fearIndex) {
         if (!suggestion || !phobiaId) return;
         var now = Date.now();
+        if ((now - lastLevelChangeTs) < ADAPTATION_LOCK_MS) return;
         if (suggestion === 'up' && currentLevel === 1) {
-          consecutiveUp++;
-          consecutiveDown = 0;
-          if (consecutiveUp >= HYSTERESIS_COUNT && (now - lastLevelChangeTs) >= COOLDOWN_UP_MS) {
-            setLevelTo(2);
-          }
+          setLevelTo(2);
         } else if (suggestion === 'down' && currentLevel >= 2) {
-          consecutiveDown++;
-          consecutiveUp = 0;
-          if (consecutiveDown >= HYSTERESIS_COUNT && (now - lastLevelChangeTs) >= COOLDOWN_DOWN_MS) {
-            setLevelTo(Math.max(1, currentLevel - 1));
-          }
-        } else {
-          consecutiveUp = 0;
-          consecutiveDown = 0;
+          setLevelTo(Math.max(1, currentLevel - 1));
         }
       }
 
@@ -538,8 +522,6 @@
         videoEl.addEventListener('timeupdate', updateProgress);
         videoEl.addEventListener('loadedmetadata', updateProgress);
         lastLevelChangeTs = Date.now();
-        consecutiveUp = 0;
-        consecutiveDown = 0;
       }
 
       fetch(typeof assetUrl === 'function' ? assetUrl('data/content.json') : 'data/content.json')

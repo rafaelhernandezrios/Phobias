@@ -33,12 +33,29 @@ except Exception:
     HAS_WEBSOCKETS = False
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SCRIPTS_DIR = Path(__file__).resolve().parent
+if str(SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_DIR))
 WS_HOST = "127.0.0.1"
 WS_PORT = 8765
 # Same HTTPS static server as `npm run experiment` (http-server app -p 8443)
 WEB_APP_BASE_URL = "https://127.0.0.1:8443/"
 WS_USE_SSL = False  # Set True if recorder runs with --wss (use wss:// for HTTPS)
 CONTENT_JSON = PROJECT_ROOT / "app" / "data" / "content.json"
+
+try:
+    from config_eeg import FEAR_BASELINE_CALIBRATION_DEFAULT_S
+except ImportError:
+    FEAR_BASELINE_CALIBRATION_DEFAULT_S = 45.0
+
+try:
+    from eeg_adaptive import fear_stress_threshold
+except ImportError:
+    fear_stress_threshold = None
+
+# Legacy mood when server sends no baseline (fixed z-scale)
+_LEGACY_LOW = -0.3
+_LEGACY_HIGH = 0.8
 
 PHOBIA_JP_NAMES = {
     "arachnophobia": "アラクノフォビア",
@@ -132,6 +149,9 @@ class AdaptiveMonitorApp:
         self._start_level_var = tk.StringVar(value="0")
         self._experiment_id_var = tk.StringVar(value=f"exp_{int(time.time())}")
         self._duration_seconds_var = tk.StringVar(value="120")
+        self._baseline_calibration_var = tk.StringVar(
+            value=str(int(FEAR_BASELINE_CALIBRATION_DEFAULT_S)),
+        )
         self._auto_adaptation_enabled = True
 
         # State
@@ -269,6 +289,22 @@ class AdaptiveMonitorApp:
         ttk.Label(dur_frame, text="Duration (sec) / 総時間（秒）:", width=18).pack(side=tk.LEFT)
         ttk.Entry(dur_frame, textvariable=self._duration_seconds_var, width=28).pack(side=tk.LEFT, padx=6)
 
+        bcal_frame = ttk.Frame(main)
+        bcal_frame.pack(fill=tk.X, pady=(0, 6))
+        ttk.Label(
+            bcal_frame,
+            text="Baseline cal (sec) / 校正（秒）:",
+            width=18,
+        ).pack(side=tk.LEFT)
+        ttk.Entry(bcal_frame, textvariable=self._baseline_calibration_var, width=10).pack(side=tk.LEFT, padx=6)
+        ttk.Label(
+            bcal_frame,
+            text="0 = legacy (8-sample ref). Timed: stay level 0, then auto level 1 + adapt.",
+            foreground="gray",
+            font=("", 8),
+            wraplength=280,
+        ).pack(side=tk.LEFT, padx=(4, 0))
+
         btns = ttk.Frame(main)
         btns.pack(fill=tk.X, pady=(0, 6))
         ttk.Button(
@@ -352,9 +388,21 @@ class AdaptiveMonitorApp:
             self.connection_status.set("Connected (receiving state) / 状態受信中（EEG）")
             if data.get("fear_index") is not None:
                 self.fear_index.set(f"{float(data['fear_index']):.2f}")
-                self._update_mood_from_fear(data.get("fear_index"))
+                self._update_mood_from_fear(
+                    data.get("fear_index"),
+                    data.get("fear_ref_mean"),
+                    data.get("fear_ref_std"),
+                    data.get("fear_stress_threshold"),
+                    data.get("adaptive_phase"),
+                    data.get("fear_index_aggregate"),
+                )
             self.level_suggestion.set(str(data.get("level_suggestion", "—")))
             self.current_level.set(str(data.get("current_level", "—")))
+            phase = data.get("adaptive_phase")
+            if phase == "calibration" and data.get("baseline_remaining_s") is not None:
+                self.connection_status.set(
+                    f"Calibration ~{float(data['baseline_remaining_s']):.0f}s left / 校正残り～{float(data['baseline_remaining_s']):.0f}秒",
+                )
             m = data.get("metrics") or {}
             self.theta_fz.set(_fmt(m.get("theta_fz")))
             self.beta_alpha.set(_fmt(m.get("beta_alpha_fz_cz")))
@@ -407,17 +455,56 @@ class AdaptiveMonitorApp:
         if hasattr(self, "_auto_adaptation_button") and self._auto_adaptation_button:
             self._auto_adaptation_button.configure(text=f"Adaptive mood: {'ON' if enabled else 'OFF'} / 適応モード：{'ON' if enabled else 'OFF'}")
 
-    def _update_mood_from_fear(self, fear_index_val):
+    def _update_mood_from_fear(
+        self,
+        fear_index_val,
+        ref_mean=None,
+        ref_std=None,
+        stress_thr=None,
+        adaptive_phase=None,
+        fear_index_aggregate=None,
+    ):
         try:
             fi = float(fear_index_val)
         except Exception:
             self._mood_var.set("—")
             return
-        threshold_low = -0.3
-        threshold_high = 0.8
-        if fi <= threshold_low:
+        # During calibration there is no μ/σ ref yet: use legacy z-bands on instant index (matches volatile HUD).
+        if adaptive_phase == "calibration" or stress_thr is None:
+            if fi <= _LEGACY_LOW:
+                self._mood_var.set("CALM / 落ち着き")
+            elif fi >= _LEGACY_HIGH:
+                self._mood_var.set("STRESSED / ストレス高")
+            else:
+                self._mood_var.set("MEDIUM / 中間")
+            return
+
+        thr = None
+        if stress_thr is not None:
+            try:
+                thr = float(stress_thr)
+            except Exception:
+                thr = None
+        if thr is None and ref_mean is not None and ref_std is not None and fear_stress_threshold is not None:
+            try:
+                thr = fear_stress_threshold(float(ref_mean), float(ref_std))
+            except Exception:
+                thr = None
+        # During experiment compare rolling mean (same as adaptation) to baseline + % threshold.
+        metric = fi
+        if fear_index_aggregate is not None:
+            try:
+                metric = float(fear_index_aggregate)
+            except Exception:
+                metric = fi
+        if thr is not None:
+            self._mood_var.set(
+                "STRESSED / ストレス高" if metric >= thr else "CALM / 落ち着き"
+            )
+            return
+        if fi <= _LEGACY_LOW:
             self._mood_var.set("CALM / 落ち着き")
-        elif fi >= threshold_high:
+        elif fi >= _LEGACY_HIGH:
             self._mood_var.set("STRESSED / ストレス高")
         else:
             self._mood_var.set("MEDIUM / 中間")
@@ -442,6 +529,10 @@ class AdaptiveMonitorApp:
         except Exception:
             duration_seconds = 0
         experiment_id = self._experiment_id_var.get().strip() or f"exp_{int(time.time())}"
+        try:
+            baseline_calibration_seconds = float(self._baseline_calibration_var.get())
+        except Exception:
+            baseline_calibration_seconds = 0.0
 
         self._send_control({
             "type": "controller_start",
@@ -450,6 +541,7 @@ class AdaptiveMonitorApp:
             "level": start_level,
             "experiment_id": experiment_id,
             "duration_seconds": duration_seconds,
+            "baseline_calibration_seconds": baseline_calibration_seconds,
         })
 
     def _send_stop_experiment(self):
