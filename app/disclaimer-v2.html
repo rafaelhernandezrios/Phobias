@@ -437,8 +437,7 @@
       var videoWorldFlow = document.getElementById('video-world-flow');
       var videoFlow = document.getElementById('video360-flow');
 
-      var WS_PORT = 8765;
-      var WS_URL = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.hostname + ':' + WS_PORT;
+      var WS_URL = (window.location.protocol === 'https:' ? 'wss:' : 'ws:') + '//' + window.location.host + '/ws';
       var flowContentData = null;
       var flowWs = null;
       var flowPhobiaId = null;

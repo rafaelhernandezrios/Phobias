@@ -244,9 +244,8 @@
   <script src="js/logger.js"></script>
   <script>
     (function () {
-      var WS_PORT = 8765;
       var protocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
-      var WS_URL = protocol + '//' + window.location.hostname + ':' + WS_PORT;
+      var WS_URL = protocol + '//' + window.location.host + '/ws';
       var ADAPTATION_LOCK_MS = 8000;
       var phobiaId = null;
       var phobiaName = null;

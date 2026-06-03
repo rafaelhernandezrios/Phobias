@@ -17,8 +17,43 @@ try {
   selfsigned = require('selfsigned');
 }
 
+// Collect all local IPv4 addresses so the cert is valid from LAN devices (VR headset, phones).
+const os = require('os');
+const lanIps = [];
+const ifaces = os.networkInterfaces();
+for (const name of Object.keys(ifaces)) {
+  for (const ni of ifaces[name] || []) {
+    if (ni.family === 'IPv4' && !ni.internal) lanIps.push(ni.address);
+  }
+}
+
+const altNames = [
+  { type: 2, value: 'localhost' },          // DNS
+  { type: 7, ip: '127.0.0.1' },             // IP
+  ...lanIps.map((ip) => ({ type: 7, ip })), // LAN IPs
+];
+
+console.log('SAN entries:', ['localhost', '127.0.0.1', ...lanIps].join(', '));
+
 const attrs = [{ name: 'commonName', value: 'localhost' }];
-const opts = { days: 365, keySize: 2048, algorithm: 'sha256' };
+const opts = {
+  days: 365,
+  keySize: 2048,
+  algorithm: 'sha256',
+  extensions: [
+    { name: 'basicConstraints', cA: false },
+    {
+      name: 'keyUsage',
+      digitalSignature: true,
+      keyEncipherment: true,
+    },
+    {
+      name: 'extKeyUsage',
+      serverAuth: true,
+    },
+    { name: 'subjectAltName', altNames },
+  ],
+};
 const pems = selfsigned.generate(attrs, opts);
 
 const dir = __dirname;

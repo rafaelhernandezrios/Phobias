@@ -105,6 +105,23 @@
         アプリを開いたままお待ちください。
       </p>
       <div id="ws-status" class="ws-status disconnected">WebSocket: Disconnected</div>
+
+      <div id="browser-start-panel" style="display:none; margin-top:20px; padding:16px; border:1px solid rgba(255,255,255,0.1); border-radius:10px; background:rgba(30,35,50,0.8); text-align:left;">
+        <div style="font-weight:700; margin-bottom:10px; font-size:1rem; color:#f0f2f5;">Quick Start (browser)</div>
+        <label style="display:block; margin-bottom:6px; color:#9ca3af; font-size:0.85rem;">Phobia</label>
+        <select id="qs-phobia" style="width:100%; padding:8px; border-radius:6px; background:#1a1f2e; color:#f0f2f5; border:1px solid rgba(255,255,255,0.15); margin-bottom:10px; font-size:0.9rem;"></select>
+        <label style="display:block; margin-bottom:6px; color:#9ca3af; font-size:0.85rem;">Start level</label>
+        <select id="qs-level" style="width:100%; padding:8px; border-radius:6px; background:#1a1f2e; color:#f0f2f5; border:1px solid rgba(255,255,255,0.15); margin-bottom:10px; font-size:0.9rem;">
+          <option value="0">0 — Baseline</option>
+          <option value="1" selected>1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option>
+        </select>
+        <label style="display:block; margin-bottom:6px; color:#9ca3af; font-size:0.85rem;">Session type</label>
+        <select id="qs-session" style="width:100%; padding:8px; border-radius:6px; background:#1a1f2e; color:#f0f2f5; border:1px solid rgba(255,255,255,0.15); margin-bottom:12px; font-size:0.9rem;">
+          <option value="hybrid">Hybrid (adaptive + manual)</option>
+          <option value="auto_sequence">Auto sequence (0→5 timed)</option>
+        </select>
+        <button id="qs-start-btn" type="button" style="width:100%; padding:10px; border:none; border-radius:8px; background:#6366f1; color:#fff; font-weight:700; font-size:1rem; cursor:pointer;">▶ Start experiment</button>
+      </div>
     </div>
   </div>
 
@@ -174,9 +191,8 @@
       });
 
       function getWsUrl() {
-        var WS_PORT = 8765;
         var protocol = (window.location.protocol === 'https:') ? 'wss:' : 'ws:';
-        return protocol + '//' + window.location.hostname + ':' + WS_PORT;
+        return protocol + '//' + window.location.host + '/ws';
       }
 
       window._playerTextureApplied = false;
@@ -292,6 +308,7 @@
         if (waitingVr) waitingVr.setAttribute('visible', false);
         if (videoHud) videoHud.classList.remove('hidden');
         if (videosphereWorld) videosphereWorld.setAttribute('visible', true);
+        if (qsPanel) qsPanel.style.display = 'none';
       }
 
       function getVideoUrlForLevel(level, cb) {
@@ -553,7 +570,21 @@
       // Load content.json once (for phobia names, levels and duration fallback).
       contentDataPromise = fetch(typeof assetUrl === 'function' ? assetUrl('data/content.json') : 'data/content.json')
         .then(function (r) { return r.json(); })
-        .then(function (data) { contentData = data; return data; })
+        .then(function (data) {
+          contentData = data;
+          // Populate Quick Start phobia dropdown
+          var qsSel = document.getElementById('qs-phobia');
+          if (qsSel && data && data.phobias) {
+            qsSel.innerHTML = '';
+            data.phobias.forEach(function (p) {
+              var opt = document.createElement('option');
+              opt.value = p.id;
+              opt.textContent = p.name || p.id;
+              qsSel.appendChild(opt);
+            });
+          }
+          return data;
+        })
         .catch(function () { contentData = null; return null; });
 
       if (videoEl) {
@@ -561,11 +592,39 @@
         videoEl.addEventListener('loadedmetadata', updateProgress);
       }
 
+      // Quick Start panel: send controller_start directly from browser.
+      var qsPanel = document.getElementById('browser-start-panel');
+      var qsBtn = document.getElementById('qs-start-btn');
+      if (qsBtn) {
+        qsBtn.addEventListener('click', function () {
+          var phobiaSelect = document.getElementById('qs-phobia');
+          var levelSelect = document.getElementById('qs-level');
+          var sessionSelect = document.getElementById('qs-session');
+          var pid = phobiaSelect ? phobiaSelect.value : 'arachnophobia';
+          var pname = phobiaSelect ? phobiaSelect.options[phobiaSelect.selectedIndex].text : pid;
+          var lvl = levelSelect ? parseInt(levelSelect.value, 10) : 1;
+          var stype = sessionSelect ? sessionSelect.value : 'hybrid';
+          sendWs({
+            type: 'controller_start',
+            phobia_id: pid,
+            phobia_name: pname,
+            level: lvl,
+            experiment_id: 'browser_' + Math.floor(Date.now() / 1000),
+            duration_seconds: 0,
+            session_type: stype,
+            baseline_calibration_seconds: 0
+          });
+        });
+      }
+
       function connectWebSocket() {
         setWsStatus('connecting', 'WebSocket: Connecting…');
         try {
           ws = new WebSocket(getWsUrl());
-          ws.onopen = function () { setWsStatus('connected', 'WebSocket: Connected'); };
+          ws.onopen = function () {
+            setWsStatus('connected', 'WebSocket: Connected');
+            if (qsPanel) qsPanel.style.display = 'block';
+          };
           ws.onmessage = function (ev) {
             try {
               var data = JSON.parse(ev.data);
@@ -588,8 +647,14 @@
               }
             } catch (e) {}
           };
-          ws.onclose = function () { setWsStatus('disconnected', 'WebSocket: Disconnected'); };
-          ws.onerror = function () { setWsStatus('disconnected', 'WebSocket: Connection failed'); };
+          ws.onclose = function () {
+            setWsStatus('disconnected', 'WebSocket: Disconnected');
+            if (qsPanel) qsPanel.style.display = 'none';
+          };
+          ws.onerror = function () {
+            setWsStatus('disconnected', 'WebSocket: Connection failed');
+            if (qsPanel) qsPanel.style.display = 'none';
+          };
         } catch (e) {
           setWsStatus('disconnected', 'WebSocket: Error - ' + e.message);
         }

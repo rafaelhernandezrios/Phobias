@@ -4,16 +4,29 @@
   "scripts": {
     "serve": "node server-https.js",
     "cert": "node generate-cert.js",
+    "lan-urls": "node scripts/print-lan-urls.js 8443",
+    "preflight": "node scripts/preflight.cjs",
     "serve:http": "npx --yes http-server -p 8080 -c-1",
-    "serve:https": "npx --yes http-server app -p 8443 -S -c-1",
+    "serve:https": "node server-https.js",
     "postinstall": "npm install --prefix monitor-electron",
     "monitor": "npm run dev --prefix monitor-electron -- -- --wss",
-    "monitor:tk": "python3 scripts/adaptive_monitor_gui.py --wss",
-    "experiment": "npx --yes concurrently -n web,recorder,monitor -c blue,green,magenta \"npm run serve:https\" \"python3 scripts/aura_recorder.py --wss\" \"npm run monitor\""
+    "setup:python": "node scripts/ensure-python-venv.cjs",
+    "monitor:tk": "node scripts/run-python.cjs scripts/adaptive_monitor_gui.py --wss",
+    "experiment:core": "npx --yes concurrently -n web,recorder,monitor -c blue,green,magenta \"npm run serve:https\" \"node scripts/run-python.cjs scripts/aura_recorder.py --wss\" \"npm run monitor\"",
+    "experiment": "npm run setup:python && npm run experiment:core",
+    "experiment:mock": "npx --yes concurrently -n web,mock,monitor -c blue,yellow,magenta \"npm run serve:https\" \"node scripts/run-python.cjs scripts/mock_recorder.py --wss\" \"npm run monitor\"",
+    "package:monitor": "npm run build --prefix monitor-electron && npm run package:mac --prefix monitor-electron",
+    "package:monitor:win": "npm run build --prefix monitor-electron && npm run package:win --prefix monitor-electron",
+    "build:standalone": "npm run build --prefix monitor-electron",
+    "package:standalone:win": "npm run build:standalone && npm run package:standalone:win --prefix monitor-electron",
+    "package:standalone:mac": "npm run build:standalone && npm run package:standalone:mac --prefix monitor-electron"
   },
   "devDependencies": {
     "concurrently": "^9.0.0",
     "http-server": "^14.1.1",
     "selfsigned": "^2.4.1"
+  },
+  "dependencies": {
+    "ws": "^8.21.0"
   }
 }

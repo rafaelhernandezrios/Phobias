@@ -6,14 +6,20 @@ Web VR platform for gradual exposure to 5 phobias, with 3 levels per phobia, eve
 
 ## For research centers — start here
 
-1. **[Getting started](docs/GETTING_STARTED.md)** — What the repo is, prerequisites, and **step-by-step instructions** to run:
+1. **[Delivery / entrega](docs/DELIVERY.md)** — Package for handoff (Mac `.command`, Windows `.bat`).  
+   **Windows:** [DELIVERY_WINDOWS.md](docs/DELIVERY_WINDOWS.md)
+2. **[Getting started](docs/GETTING_STARTED.md)** — What the repo is, prerequisites, and **step-by-step instructions** to run:
    - **Demo (no EEG):** try the app in the browser (e.g. classic menu flow).
    - **Full EEG experiment:** AURA + recorder + HTTPS; participant accepts disclosure and waits; **researcher** drives start/stop and parameters from the **PC monitor GUI**.
    - **With PC monitor:** adaptive metrics, session control (ID, phobia, levels 0–5, duration), and manual overrides.
-2. **[Platform overview](docs/PLATFORM_VR_PHOBIAS.md)** — What the platform does, full flow, integrations, safety, data outputs.  
+3. **[Platform overview](docs/PLATFORM_VR_PHOBIAS.md)** — What the platform does, full flow, integrations, safety, data outputs.  
    **日本語：** [プラットフォーム概要（研究機関向け）](docs/PLATFORM_VR_PHOBIAS_JA.md)
 
-Quick try (no EEG): `npm install` → `npx serve app` → open `http://localhost:3000`.
+Quick try (no EEG): `npm install` → `npm run preflight` → `npm run experiment:mock` → open `https://127.0.0.1:8443`.
+
+**Verify before delivery:** `npm run preflight`
+
+**Executable without Node/Python on lab PC:** [STANDALONE_EXECUTABLE.md](docs/STANDALONE_EXECUTABLE.md) — `npm run package:standalone:win` or `:mac`
 
 ---
 
