@@ -59,7 +59,7 @@ async function downloadWithElectronGet() {
   }
 
   log('Downloading Electron v' + version + ' for ' + platform + '-' + arch + ' …');
-  log('(1–3 minutes; GitHub must be reachable)');
+  log('(1–3 minutes — wait, do not close this window)');
 
   try {
     const zipPath = await downloadArtifact.downloadArtifact({
@@ -143,7 +143,9 @@ async function main() {
   log('Failed. Try in CMD:');
   log('  set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/');
   log('  node scripts\\install-electron-force.cjs');
+  log('Or: INSTALAR-ELECTRON-WINDOWS.cmd (in project root)');
   log('Or disable antivirus briefly and retry.');
+  log('Your fix-electron script is OLD if it shows [1/5] — run git pull.');
   process.exit(1);
 }
 
