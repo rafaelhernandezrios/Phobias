@@ -1,66 +1,35 @@
 #!/usr/bin/env node
 /**
- * Ensures Electron binary is downloaded (Windows often skips it on first npm install).
- * Run: node scripts/ensure-electron-install.cjs
+ * Ensures Electron binary is present. Delegates to install-electron-force.cjs if needed.
  */
-const fs = require('fs');
-const path = require('path');
 const { spawnSync } = require('child_process');
+const path = require('path');
+const fs = require('fs');
 
-const monitorRoot = path.join(__dirname, '..', 'monitor-electron');
-const electronDir = path.join(monitorRoot, 'node_modules', 'electron');
-const pathTxt = path.join(electronDir, 'path.txt');
-const installJs = path.join(electronDir, 'install.js');
+const root = path.join(__dirname, '..');
+const exe = path.join(root, 'monitor-electron', 'node_modules', 'electron', 'dist', 'electron.exe');
+const exeMac = path.join(
+  root,
+  'monitor-electron',
+  'node_modules',
+  'electron',
+  'dist',
+  'Electron.app',
+  'Contents',
+  'MacOS',
+  'Electron',
+);
 
-function electronBinaryExists() {
-  if (!fs.existsSync(pathTxt)) return false;
-  try {
-    const name = fs.readFileSync(pathTxt, 'utf8').trim();
-    const bin =
-      process.platform === 'win32'
-        ? path.join(electronDir, 'dist', name + '.exe')
-        : path.join(electronDir, 'dist', name + '.app', 'Contents', 'MacOS', name);
-    if (process.platform === 'win32') {
-      return fs.existsSync(path.join(electronDir, 'dist', 'electron.exe'));
-    }
-    return fs.existsSync(bin);
-  } catch {
-    return false;
-  }
+function ready() {
+  if (process.platform === 'win32') return fs.existsSync(exe);
+  return fs.existsSync(exeMac);
 }
 
-function runInstall() {
-  if (!fs.existsSync(installJs)) {
-    console.error('[electron] Missing', installJs);
-    console.error('         Run: cd monitor-electron && npm install');
-    return false;
-  }
-  const env = { ...process.env };
-  delete env.ELECTRON_RUN_AS_NODE;
-  console.log('[electron] Downloading binary (may take 1–2 min)…');
-  const r = spawnSync(process.execPath, [installJs], {
-    cwd: monitorRoot,
-    stdio: 'inherit',
-    env,
-  });
-  return r.status === 0 && electronBinaryExists();
-}
-
-if (!fs.existsSync(electronDir)) {
-  console.error('[electron] monitor-electron/node_modules/electron not found.');
-  console.error('         Run: npm install --prefix monitor-electron');
-  process.exit(1);
-}
-
-if (electronBinaryExists()) {
+if (ready()) {
   console.log('[electron] OK — binary present');
   process.exit(0);
 }
 
-if (runInstall()) {
-  console.log('[electron] OK — installed');
-  process.exit(0);
-}
-
-console.error('[electron] Install failed. On Windows run: scripts\\fix-electron-windows.cmd');
-process.exit(1);
+const force = path.join(__dirname, 'install-electron-force.cjs');
+const r = spawnSync(process.execPath, [force], { cwd: root, stdio: 'inherit' });
+process.exit(r.status === 0 && ready() ? 0 : 1);

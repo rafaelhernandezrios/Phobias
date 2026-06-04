@@ -1,9 +1,10 @@
 @echo off
 chcp 65001 >nul
-title Fix Electron (monitor-electron)
+title Fix Electron (Windows)
 cd /d "%~dp0\.."
 set "ELECTRON_RUN_AS_NODE="
 set ELECTRON_RUN_AS_NODE=
+set ELECTRON_SKIP_BINARY_DOWNLOAD=
 
 echo ========================================
 echo   Reparar Electron en Windows
@@ -17,34 +18,17 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [1/5] Borrar Electron corrupto...
+echo [1/4] Borrar Electron corrupto...
 if exist "monitor-electron\node_modules\electron" (
     rmdir /s /q "monitor-electron\node_modules\electron"
-    echo       Eliminado monitor-electron\node_modules\electron
 )
 echo.
 
-echo [2/5] Reinstalar paquete electron...
+echo [2/4] npm install electron en monitor-electron...
 cd monitor-electron
 call npm install electron@33.4.11 --save-dev --no-fund --no-audit
 if errorlevel 1 (
-    echo [ERROR] npm install electron fallo
-    cd ..
-    pause
-    exit /b 1
-)
-echo.
-
-echo [3/5] Descargar electron.exe (install.js)...
-if not exist "node_modules\electron\install.js" (
-    echo [ERROR] No existe install.js — revisa red / antivirus
-    cd ..
-    pause
-    exit /b 1
-)
-node node_modules\electron\install.js
-if errorlevel 1 (
-    echo [ERROR] install.js fallo — prueba VPN off, o ejecuta como administrador
+    echo [ERROR] Revisa monitor-electron\package.json — debe ser JSON valido
     cd ..
     pause
     exit /b 1
@@ -52,31 +36,30 @@ if errorlevel 1 (
 cd ..
 echo.
 
-echo [4/5] Verificar con script del proyecto...
-node scripts\ensure-electron-install.cjs
+echo [3/4] Descargar electron.exe (forzado)...
+rem Opcional si GitHub falla — descomenta la siguiente linea:
+rem set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
+node scripts\install-electron-force.cjs
 if errorlevel 1 (
     echo.
-    echo Si sigue fallando:
-    echo   - Desactiva antivirus un momento
-    echo   - npm config set proxy / https-proxy si usas proxy corporativo
-    echo   - npm config set electron_mirror https://npmmirror.com/mirrors/electron/
+    echo === Reintento con mirror alternativo ===
+    set ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
+    node scripts\install-electron-force.cjs
+)
+if errorlevel 1 (
     pause
     exit /b 1
 )
 echo.
 
-echo [5/5] Compilar monitor...
+echo [4/4] Compilar monitor...
 call npm run build --prefix monitor-electron
 echo.
 
 if exist "monitor-electron\node_modules\electron\dist\electron.exe" (
-    echo [OK] electron.exe listo
+    echo [OK] Listo. Ejecuta: run-experiment-mock.bat
 ) else (
-    echo [ERROR] Sigue sin existir electron.exe
-    pause
-    exit /b 1
+    echo [ERROR] Sigue sin electron.exe
 )
-
 echo.
-echo Listo. Ejecuta: run-experiment-mock.bat
 pause
