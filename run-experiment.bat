@@ -8,13 +8,9 @@ if /I "%~1"=="--mock" set "MOCK=1"
 if /I "%PHOBIAS_MOCK%"=="1" set "MOCK=1"
 
 cd /d "%~dp0"
-rem Cursor/IDE sets this and breaks Electron ("electron uninstall" / dev server error)
-set "ELECTRON_RUN_AS_NODE="
-set ELECTRON_RUN_AS_NODE=
 
 echo ========================================
-echo   VR Phobia — full stack launcher
-echo   VR恐怖症 一括起動 (Windows)
+echo   VR Phobia — launcher (Windows)
 echo ========================================
 echo.
 
@@ -25,22 +21,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
-node -e "const s=require('./package.json').scripts.experiment||''; if(s.includes('adaptive_monitor_gui')) process.exit(1)" >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] package.json uses legacy Tk monitor. Update the repo.
-    pause
-    exit /b 1
-)
-
 if not exist "node_modules\" (
     echo [deps] npm install...
     call npm install
-    echo.
-)
-
-if not exist "monitor-electron\node_modules\" (
-    echo [deps] monitor-electron...
-    call npm install --prefix monitor-electron
     echo.
 )
 
@@ -50,43 +33,30 @@ if not exist "cert.pem" (
     echo.
 )
 
-echo [preflight] Checking environment...
-call npm run preflight
-if errorlevel 1 (
-    echo.
-    echo Fix errors above, then run again.
-    pause
-    exit /b 1
+if "%MOCK%"=="1" (
+    echo [preflight] Mock mode...
+    call npm run preflight:mock
+) else (
+    echo [preflight] Full EEG...
+    call npm run preflight
+    if errorlevel 1 goto :prefail
+    echo [python] Ensuring .venv...
+    call npm run setup:python
 )
-
-echo [python] Ensuring .venv...
-call npm run setup:python
-echo.
-
-echo [electron] Verificando binario...
-node scripts\ensure-electron-install.cjs
-if errorlevel 1 (
-    echo.
-    echo Electron no instalado. Ejecuta primero: scripts\fix-electron-windows.cmd
-    pause
-    exit /b 1
-)
+if errorlevel 1 goto :prefail
 echo.
 
 if "%MOCK%"=="1" (
-    echo [start] MOCK stack — no AURA / EEG hardware
+    echo [start] HTTPS + mock EEG — no AURA, no Electron
 ) else (
-    echo [start] Full stack — aura_recorder + AURA LSL required
+    echo [start] HTTPS + aura_recorder — AURA LSL required
 )
 echo.
-echo   URLs (HTTPS + WebSocket on port 8443^):
 call npm run lan-urls
 echo.
-echo   PC browser:  https://127.0.0.1:8443
-echo   Quest (Wi-Fi): use the LAN URL printed above
-echo   Monitor:     Electron window opens automatically
-echo.
-echo   Stop: Ctrl+C in this window
+echo   Researcher panel: https://127.0.0.1:8443/researcher.html
+echo   VR participant:   https://127.0.0.1:8443/
+echo   Stop: Ctrl+C
 echo.
 
 if "%MOCK%"=="1" (
@@ -94,6 +64,14 @@ if "%MOCK%"=="1" (
 ) else (
     call npm run experiment
 )
+goto :end
 
+:prefail
+echo.
+echo Fix errors above, then run again.
+pause
+exit /b 1
+
+:end
 echo.
 pause

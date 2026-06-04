@@ -62,14 +62,17 @@ After start, the window shows LAN URLs. Also:
 npm run lan-urls
 ```
 
-| Device | URL |
-|--------|-----|
-| PC browser | `https://127.0.0.1:8443` |
-| Meta Quest | `https://<YOUR_PC_IP>:8443` (e.g. `https://192.168.1.50:8443`) |
+| Role | URL |
+|------|-----|
+| **VR / Quest (participant)** | `https://<YOUR_PC_IP>:8443/` |
+| **Researcher (PC browser)** | `https://<YOUR_PC_IP>:8443/researcher.html` |
+| Local only | `https://127.0.0.1:8443/` and `.../researcher.html` |
 
-On Quest: open **Meta Browser**, type the **LAN** URL, accept the certificate warning once.
+On Quest: open **Meta Browser**, type the **LAN** participant URL, accept the certificate once.
 
-Participant flow: disclosure → **Waiting for configuration** → researcher **Start** (monitor) or **Quick Start** in browser.
+On the lab PC: open **researcher.html** in Chrome/Edge — **Start experiment**, manual levels, metrics (same WebSocket as Electron had).
+
+Participant flow: disclosure → **Waiting for configuration** → researcher **Start** on the panel (or Quick Start on the wait page).
 
 ---
 
@@ -77,8 +80,8 @@ Participant flow: disclosure → **Waiting for configuration** → researcher **
 
 | File | Purpose |
 |------|---------|
-| `run-experiment-mock.bat` | HTTPS + mock recorder + Electron monitor (no EEG) |
-| `run-experiment.bat` | HTTPS + aura_recorder + monitor (needs AURA) |
+| `run-experiment-mock.bat` | One Node process: HTTPS + mock EEG (no AURA, no Electron) |
+| `run-experiment.bat` | HTTPS + Python `aura_recorder` (needs AURA); researcher panel in browser |
 
 ---
 

@@ -10,12 +10,12 @@ Web VR platform for gradual exposure to 5 phobias, with 3 levels per phobia, eve
    **Delivery:** [DELIVERY.md](DELIVERY.md) · **Windows:** [DELIVERY_WINDOWS.md](DELIVERY_WINDOWS.md)
 2. **[Getting started](docs/GETTING_STARTED.md)** — What the repo is, prerequisites, and **step-by-step instructions** to run:
    - **Demo (no EEG):** try the app in the browser (e.g. classic menu flow).
-   - **Full EEG experiment:** AURA + recorder + HTTPS; participant accepts disclosure and waits; **researcher** drives start/stop and parameters from the **PC monitor GUI**.
-   - **With PC monitor:** adaptive metrics, session control (ID, phobia, levels 0–5, duration), and manual overrides.
+   - **Full EEG experiment:** AURA + recorder + HTTPS; participant accepts disclosure and waits; **researcher** drives start/stop from **`/researcher.html`** in the PC browser.
+   - **Researcher panel:** adaptive metrics, session control (ID, phobia, levels 0–5, duration), manual overrides (no Electron required).
 3. **[Platform overview](docs/PLATFORM_VR_PHOBIAS.md)** — What the platform does, full flow, integrations, safety, data outputs.  
    **日本語：** [プラットフォーム概要（研究機関向け）](docs/PLATFORM_VR_PHOBIAS_JA.md)
 
-Quick try (no EEG): `npm install` → `npm run preflight` → `npm run experiment:mock` → open `https://127.0.0.1:8443`.
+Quick try (no EEG): `npm install` → `npm run cert` → `npm run experiment:mock` → VR: `https://127.0.0.1:8443/` · Researcher: `https://127.0.0.1:8443/researcher.html`.
 
 **Verify before delivery:** `npm run preflight`
 
@@ -34,9 +34,9 @@ Quick try (no EEG): `npm install` → `npm run preflight` → `npm run experimen
 **English.** The default entry (`index.html` → `disclaimer-v2.html`) is optimized for **lab sessions**:
 
 1. **Participant** — Reads the disclosure and taps **Accept / 同意**. They do **not** choose phobia or level in the browser for this protocol; the app opens **Waiting for configuration** (`experiment-wait-config.html`) and stays there until the researcher starts the run.
-2. **Researcher** — On the PC, runs the stack (e.g. `npm run experiment`) and uses the **Adaptive State Monitor** (Electron app in [`monitor-electron/`](monitor-electron/)): pick **Experiment** (phobia from `content.json`), **Start level** (0 = baseline through 5), **Experiment ID**, **Duration (seconds)**, then **Start experiment**. Optional: **Stop experiment**, toggle **Adaptive mood** (ON/OFF), or **Manual level** buttons to push levels to VR in real time. Legacy Tk UI: `npm run monitor:tk` or `python3 scripts/adaptive_monitor_gui.py --wss`.
+2. **Researcher** — On the PC, runs the stack (e.g. `npm run experiment` or `npm run experiment:mock`) and opens **`https://<PC-IP>:8443/researcher.html`**: phobia, start level 0–5, experiment ID, duration, **Start experiment**, **Stop**, **Adaptive mood**, **Manual level** 0–5. Legacy: Electron [`monitor-electron/`](monitor-electron/) or Tk `npm run monitor:tk`.
 
-**Español.** La entrada por defecto está pensada para **sesión en laboratorio**: el **participante** solo **acepta el disclosure**; no configura fobia ni nivel en la web. Pasa a la pantalla **esperando configuración** y permanece ahí. El **investigador** configura e **inicia el experimento** desde el **monitor en PC** (Electron en `monitor-electron/`, o la GUI Tk heredada con `npm run monitor:tk`): fobia, nivel inicial 0–5, ID de sesión, duración, inicio/parada, modo adaptativo y niveles manuales vía WebSocket.
+**Español.** Flujo de laboratorio: el **participante** solo acepta el disclosure y espera en **esperando configuración**. El **investigador** abre **`/researcher.html`** en el navegador del PC (mismo WebSocket que el Quest): inicio/parada, métricas adaptativas y niveles manuales. Mock sin EEG: `npm run experiment:mock` (un solo proceso Node).
 
 ## Project Structure
 
@@ -45,7 +45,8 @@ VR-ATR Phobias/
 ├── app/                      # Web app (served as root by server)
 │   ├── index.html            # Redirects to disclaimer-v2 (default entry)
 │   ├── disclaimer-v2.html    # Disclosure + VR; Accept → wait for researcher config (EEG path)
-│   ├── experiment-wait-config.html  # Participant wait screen; receives start/stop from recorder/GUI
+│   ├── experiment-wait-config.html  # Participant wait screen; receives start/stop from WebSocket
+│   ├── researcher.html             # Researcher panel (browser, replaces Electron for daily use)
 │   ├── index-classic.html    # Classic consent → optional EEG / menu links
 │   ├── menu.html             # VR menu: 5 phobias (self-guided test)
 │   ├── level-select.html     # Level 1–3 per phobia
@@ -139,7 +140,7 @@ npm run experiment
 # Terminal 2: npm run serve:https
 ```
 
-Open `https://127.0.0.1:8443` (or your PC's IP for VR). **Participant:** accept disclosure → stay on **Waiting for configuration**. **Researcher:** use the **Electron monitor** (opens with `npm run experiment`): set experiment ID, phobia, start level (0–5), duration → **Start experiment**. The monitor shows Fear/Engagement metrics, adaptive suggestion, **Adaptive mood** toggle, and **manual level** 0–5. CSVs are saved in `output/`. Tk fallback: `npm run monitor:tk`. Details: [monitor-electron/README.md](monitor-electron/README.md).
+Open `https://127.0.0.1:8443/` on Quest (LAN IP). **Participant:** disclosure → **Waiting for configuration**. **Researcher:** `https://127.0.0.1:8443/researcher.html` — experiment ID, phobia, start level (0–5), duration → **Start experiment**; metrics, **Adaptive mood**, **manual level** 0–5. CSVs in `output/` (real recorder). Legacy Electron: [monitor-electron/README.md](monitor-electron/README.md).
 
 ## EEG Adaptive Levels
 

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VR Phobia — Researcher panel</title>
+  <link rel="stylesheet" href="css/shared.css" />
+  <link rel="stylesheet" href="css/researcher.css" />
+</head>
+<body>
+  <div class="researcher-app">
+    <header class="researcher-header">
+      <div>
+        <h1>Researcher panel / Panel investigador</h1>
+        <p class="sub">Web control — no Electron · same WebSocket as VR participant</p>
+      </div>
+      <div id="ws-status" class="ws-pill disconnected">WebSocket: …</div>
+    </header>
+
+    <section class="url-box">
+      <div><strong>VR / Quest (participant):</strong> <a id="vr-url" href="#">—</a></div>
+      <div><strong>This panel (PC):</strong> <span id="panel-url">—</span></div>
+    </section>
+
+    <div class="tabs">
+      <button type="button" class="tab active" data-tab="session">Session / Sesión</button>
+      <button type="button" class="tab" data-tab="metrics">Metrics / Métricas</button>
+    </div>
+
+    <section id="tab-session" class="tab-panel">
+      <label>Phobia / Fobia</label>
+      <select id="phobia-select"></select>
+
+      <label>Start level / Nivel inicial</label>
+      <select id="start-level">
+        <option value="0">0 — Baseline</option>
+        <option value="1" selected>1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="4">4</option>
+        <option value="5">5</option>
+      </select>
+
+      <label>Session type</label>
+      <select id="session-type">
+        <option value="hybrid">Hybrid (adaptive + manual)</option>
+        <option value="auto_sequence">Auto sequence (0→5)</option>
+      </select>
+
+      <label>Experiment ID</label>
+      <input type="text" id="experiment-id" />
+
+      <label>Duration (seconds, 0 = no auto-stop)</label>
+      <input type="number" id="duration-sec" value="120" min="0" />
+
+      <label>Baseline calibration (seconds)</label>
+      <input type="number" id="baseline-sec" value="0" min="0" />
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="btn-start">▶ Start experiment</button>
+        <button type="button" class="btn btn-danger" id="btn-stop">■ Stop</button>
+      </div>
+
+      <p class="hint">Participant must open the VR URL and accept disclosure → waiting screen.</p>
+
+      <hr />
+      <p><strong>Manual level / Nivel manual</strong></p>
+      <div class="level-btns" id="manual-levels"></div>
+
+      <label class="check-row">
+        <input type="checkbox" id="auto-adapt" checked /> Adaptive mood ON / Adaptación ON
+      </label>
+      <p id="send-error" class="error-msg"></p>
+    </section>
+
+    <section id="tab-metrics" class="tab-panel hidden">
+      <div class="metric-card">
+        <div class="metric-label">Fear index / Índice</div>
+        <div class="metric-value" id="fear-index">—</div>
+        <div class="metric-sub" id="mood-label">—</div>
+      </div>
+      <div class="metric-grid">
+        <div><span class="k">Suggestion</span><span id="level-suggestion">—</span></div>
+        <div><span class="k">Current level</span><span id="current-level">—</span></div>
+        <div><span class="k">θ Fz</span><span id="m-theta">—</span></div>
+        <div><span class="k">β/α</span><span id="m-beta">—</span></div>
+        <div><span class="k">α post</span><span id="m-alpha">—</span></div>
+        <div><span class="k">FAA</span><span id="m-faa">—</span></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="js/app-base.js"></script>
+  <script src="js/researcher-panel.js"></script>
+</body>
+</html>

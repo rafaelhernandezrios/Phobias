@@ -7,6 +7,7 @@ const path = require('path');
 const { spawnSync } = require('child_process');
 
 const root = path.join(__dirname, '..');
+const mockMode = process.argv.includes('--mock') || process.env.PHOBIAS_MOCK === '1';
 const isWin = process.platform === 'win32';
 const venvPy = isWin
   ? path.join(root, '.venv', 'Scripts', 'python.exe')
@@ -37,12 +38,17 @@ if (!fs.existsSync(path.join(root, 'node_modules'))) {
   err = 1;
 } else ok('npm dependencies (root)');
 
-if (!fs.existsSync(path.join(root, 'monitor-electron', 'node_modules'))) {
-  warn('monitor-electron/node_modules missing — run: npm install');
-  err = 1;
-} else ok('monitor-electron dependencies');
+if (mockMode) {
+  ok('Mock mode — researcher panel at /researcher.html (no Electron)');
+} else if (!fs.existsSync(path.join(root, 'monitor-electron', 'node_modules'))) {
+  warn('monitor-electron optional (legacy Electron UI)');
+} else {
+  ok('monitor-electron present (optional legacy UI)');
+}
 
-if (!fs.existsSync(venvPy)) {
+if (mockMode) {
+  ok('Mock recorder — Node built-in (no Python venv required)');
+} else if (!fs.existsSync(venvPy)) {
   warn('No .venv — run: npm run setup:python');
   err = 1;
 } else {
@@ -52,7 +58,7 @@ if (!fs.existsSync(venvPy)) {
 
   const p = spawnSync(venvPy, ['-c', 'import pylsl'], { encoding: 'utf8' });
   if (p.status === 0) ok('pylsl (real EEG / AURA)');
-  else warn('pylsl not installed — OK for mock; required for npm run experiment');
+  else warn('pylsl not installed — required for npm run experiment');
 }
 
 if (!fs.existsSync(path.join(root, 'cert.pem')) || !fs.existsSync(path.join(root, 'key.pem'))) {
@@ -80,5 +86,5 @@ if (err) {
   console.log('Preflight FAILED. Fix the items above.');
   process.exit(1);
 }
-console.log('Preflight OK — run: npm run experiment:mock');
+console.log(mockMode ? 'Preflight OK — run: npm run experiment:mock' : 'Preflight OK — run: npm run experiment');
 process.exit(0);

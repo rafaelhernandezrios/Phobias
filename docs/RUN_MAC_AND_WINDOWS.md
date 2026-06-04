@@ -13,9 +13,8 @@ Quick reference after `git pull`. Keep this file in the repo.
 ```bash
 cd /path/to/Phobias
 npm install
-npm run setup:python
 npm run cert
-npm run preflight
+npm run preflight:mock   # mock; for real EEG also: npm run setup:python && npm run preflight
 ```
 
 Copy 360° videos to `app/assets/videos/` (not in GitHub).
@@ -27,12 +26,16 @@ Copy 360° videos to `app/assets/videos/` (not in GitHub).
 | **Mock (no AURA)** | Double-click `run-experiment-mock.command` or `./run-experiment.sh --mock` |
 | **Real EEG** | Double-click `run-experiment.command` or `./run-experiment.sh` |
 
-### URLs
+### URLs (two browser UIs — no Electron required)
 
-- PC: `https://127.0.0.1:8443`
-- Quest: `https://<LAN_IP>:8443` → `npm run lan-urls`
+| Role | URL |
+|------|-----|
+| **VR / participant (Quest)** | `https://<LAN_IP>:8443/` |
+| **Researcher (PC browser)** | `https://<LAN_IP>:8443/researcher.html` |
 
-### Optional: standalone `.app` (no Node/Python on target Mac)
+`npm run lan-urls` prints both. Mock mode: one process (`npm run experiment:mock`).
+
+### Optional: standalone `.app` (legacy Electron bundle)
 
 Build on a Mac with Node:
 
@@ -41,13 +44,6 @@ npm run package:standalone:mac
 ```
 
 → `monitor-electron/release/VR Phobia Lab.app` (do not commit `release/` to git)
-
-### Electron error in Cursor terminal
-
-```bash
-unset ELECTRON_RUN_AS_NODE
-./run-experiment.sh --mock
-```
 
 ---
 
@@ -60,10 +56,10 @@ Open **cmd.exe** (not Cursor terminal):
 ```cmd
 cd C:\path\to\Phobias
 npm install
-npm run setup:python
 npm run cert
-npm run preflight
+npm run preflight:mock
 ```
+For real EEG add: `npm run setup:python` and `npm run preflight`.
 
 Copy videos to `app\assets\videos\`.
 
@@ -74,19 +70,14 @@ Copy videos to `app\assets\videos\`.
 | **Mock (no AURA)** | Double-click `run-experiment-mock.bat` |
 | **Real EEG** | Double-click `run-experiment.bat` |
 
-### Fix Electron errors (`failed to install correctly`, `electron uninstall`)
+### URLs (no Electron)
 
-```cmd
-scripts\fix-electron-windows.cmd
-run-experiment-mock.bat
-```
+| Role | URL |
+|------|-----|
+| **Quest / participant** | `https://<LAN_IP>:8443/` |
+| **Researcher PC** | `https://<LAN_IP>:8443/researcher.html` |
 
-Use **cmd outside Cursor** (not PowerShell in Cursor). Clears `ELECTRON_RUN_AS_NODE` and re-downloads `electron.exe`.
-
-### URLs
-
-- PC: `https://127.0.0.1:8443`
-- Quest: `https://<LAN_IP>:8443` → `npm run lan-urls`
+`npm run lan-urls`
 
 ### Optional: portable `.exe` (no Node/Python on lab PC)
 
@@ -105,11 +96,11 @@ npm run package:standalone:win
 ```cmd
 git pull
 npm install
-npm run setup:python
 npm run cert
-scripts\fix-electron-windows.cmd
 run-experiment-mock.bat
 ```
+
+Open **researcher panel** on the PC: `https://127.0.0.1:8443/researcher.html`
 
 ---
 

@@ -46,12 +46,14 @@ function lanIpv4s() {
 }
 
 const ips = lanIpv4s();
-console.log('  This PC:     https://127.0.0.1:' + port);
+console.log('  VR / participant:  https://127.0.0.1:' + port + '/');
+console.log('  Researcher panel:  https://127.0.0.1:' + port + '/researcher.html');
 if (ips.length) {
-  console.log('  VR / Quest (same Wi‑Fi):');
+  console.log('  Same Wi‑Fi (Quest + PC):');
   for (const ip of ips) {
-    console.log('    https://' + ip + ':' + port);
+    console.log('    VR:          https://' + ip + ':' + port + '/');
+    console.log('    Researcher:  https://' + ip + ':' + port + '/researcher.html');
   }
 } else {
-  console.log('  VR / Quest:  (no LAN IPv4 found — connect Wi‑Fi or Ethernet)');
+  console.log('  LAN: (no IPv4 — connect Wi‑Fi for Quest URLs)');
 }

@@ -9,10 +9,13 @@
  * en un único puerto (8443) — el WebSocket viaja por el mismo origen.
  *
  * Primera vez: ejecuta "npm run cert" para crear cert.pem y key.pem.
- * Uso: node server-https.js   (lanzado por "npm run serve:https")
+ * Uso:
+ *   node server-https.js           — HTTPS + proxy /ws → recorder externo (Python)
+ *   node server-https.js --mock    — HTTPS + mock EEG en Node (sin Python ni Electron)
  */
 
 const https = require('https');
+const USE_MOCK = process.argv.includes('--mock');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -164,23 +167,49 @@ httpsServer.on('upgrade', (req, socket, head) => {
   });
 });
 
-httpsServer.listen(PORT, '0.0.0.0', () => {
+function printUrls() {
   const lan = lanIpv4s();
+  const mode = USE_MOCK ? 'MOCK (Node EEG, no AURA)' : 'recorder @ ' + RECORDER_URL;
   console.log('');
-  console.log('  HTTPS (this Mac):     https://127.0.0.1:' + PORT);
-  console.log('                        https://localhost:' + PORT);
+  console.log('  Mode: ' + mode);
+  console.log('');
+  console.log('  Participant / VR (Quest):');
+  console.log('    https://127.0.0.1:' + PORT + '/');
+  console.log('    https://localhost:' + PORT + '/');
   if (lan.length) {
-    console.log('  HTTPS (VR / Quest — same Wi‑Fi):');
-    lan.forEach((ip) => console.log('    https://' + ip + ':' + PORT));
+    lan.forEach((ip) => console.log('    https://' + ip + ':' + PORT + '/'));
   } else {
-    console.log('  HTTPS (VR / Quest):   (no LAN IPv4 — connect Wi‑Fi or Ethernet)');
-  }
-  console.log('  WebSocket (via proxy): wss://<host>:' + PORT + '/ws  →  ' + RECORDER_URL);
-  console.log('  Tip: open the LAN URL on the headset; accept the self-signed cert once.');
-  if (lan.length) {
-    console.log('  If TLS fails on Quest, regenerate cert: npm run cert');
+    console.log('    (no LAN IPv4 — connect Wi‑Fi for Quest URL)');
   }
   console.log('');
+  console.log('  Researcher panel / Panel investigador (PC browser):');
+  console.log('    https://127.0.0.1:' + PORT + '/researcher.html');
+  console.log('    https://localhost:' + PORT + '/researcher.html');
+  if (lan.length) {
+    lan.forEach((ip) =>
+      console.log('    https://' + ip + ':' + PORT + '/researcher.html'),
+    );
+  }
+  console.log('');
+  console.log('  WebSocket: wss://<host>:' + PORT + '/ws  →  ' + RECORDER_URL);
+  console.log('  Flow: disclosure → wait → Start from researcher panel');
+  console.log('  Tip: accept self-signed cert on Quest and PC (npm run cert if needed).');
+  console.log('');
+}
+
+if (USE_MOCK) {
+  const { startMockRecorder, stopMockRecorder } = require('./scripts/mock-recorder-node.js');
+  startMockRecorder(certPath, keyPath);
+  const shutdown = () => {
+    stopMockRecorder();
+    process.exit(0);
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}
+
+httpsServer.listen(PORT, '0.0.0.0', () => {
+  printUrls();
 });
 
 http.createServer((req, res) => {
