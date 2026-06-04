@@ -8,6 +8,8 @@ if /I "%~1"=="--mock" set "MOCK=1"
 if /I "%PHOBIAS_MOCK%"=="1" set "MOCK=1"
 
 cd /d "%~dp0"
+rem Cursor/IDE sets this and breaks Electron ("electron uninstall" / dev server error)
+set "ELECTRON_RUN_AS_NODE="
 set ELECTRON_RUN_AS_NODE=
 
 echo ========================================

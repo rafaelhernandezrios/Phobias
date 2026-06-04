@@ -126,10 +126,40 @@ Does **not** start HTTPS or videos alone — use standalone portable above inste
 
 ---
 
+## Error: "Error during start dev server" / "electron uninstall"
+
+This happens when **Electron cannot start** (often in Cursor/VS Code because `ELECTRON_RUN_AS_NODE` is set).
+
+**Fix (recommended):**
+
+1. Close Cursor/VS Code terminal, open **cmd.exe** in the project folder.
+2. Run:
+   ```cmd
+   scripts\fix-electron-windows.cmd
+   ```
+3. Then double-click **`run-experiment-mock.bat`** (uses production build, not dev server).
+
+**Manual fix:**
+
+```cmd
+set ELECTRON_RUN_AS_NODE=
+cd monitor-electron
+npm install
+npx electron install
+npm run build
+cd ..
+run-experiment-mock.bat
+```
+
+The project now starts the monitor with `npm run start:wss` (build + run) instead of `electron-vite dev`, which is more stable on Windows.
+
+---
+
 ## Troubleshooting / Problemas
 
 | Problem | Solution |
 |---------|----------|
+| **electron uninstall / dev server** | Run `scripts\fix-electron-windows.cmd`; clear `ELECTRON_RUN_AS_NODE`; use `run-experiment-mock.bat` |
 | `'node' is not recognized` | Reinstall Node.js, restart terminal, check PATH |
 | `'py' is not recognized` | Install Python; or use `python -m venv .venv` then `npm run setup:python` |
 | WebSocket disconnected | Use mock `.bat`; check firewall for Node on port **8443** |

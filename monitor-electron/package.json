@@ -5,10 +5,11 @@
   "description": "Electron monitor for VR Phobia EEG (WebSocket to aura_recorder)",
   "main": "./bootstrap.cjs",
   "scripts": {
-    "dev": "cross-env ELECTRON_RUN_AS_NODE= electron-vite dev",
+    "dev": "cross-env ELECTRON_RUN_AS_NODE=0 electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "start": "electron .",
+    "start": "cross-env ELECTRON_RUN_AS_NODE=0 electron .",
+    "start:wss": "npm run build && cross-env ELECTRON_RUN_AS_NODE=0 electron . -- --wss",
     "package:mac": "electron-builder --mac --dir",
     "package:win": "electron-builder --win",
     "package:standalone:mac": "electron-builder --mac",

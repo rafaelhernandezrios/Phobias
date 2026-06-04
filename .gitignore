@@ -9,6 +9,11 @@ assets/videos/
 
 # Cursor / IDE
 .cursor/
+.DS_Store
+
+# Electron build output (build locally per machine)
+monitor-electron/release/
+monitor-electron/dist/
 
 # EEG experiment output
 output/
