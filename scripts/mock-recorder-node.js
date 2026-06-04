@@ -2,8 +2,6 @@
  * Mock EEG recorder — Node.js WebSocket server (no Python, no Electron).
  * Same protocol as scripts/mock_recorder.py
  */
-const fs = require('fs');
-const https = require('https');
 const { WebSocketServer, WebSocket } = require('ws');
 
 const WS_PORT = parseInt(process.env.MOCK_WS_PORT || '8765', 10);
@@ -145,16 +143,12 @@ function handleMessage(ws, data) {
   ws.send(JSON.stringify({ error: 'Unknown type: ' + msgType }));
 }
 
-function startMockRecorder(certPath, keyPath) {
+function startMockRecorder() {
   if (wss) return wss;
 
-  let ssl = null;
-  if (certPath && keyPath && fs.existsSync(certPath) && fs.existsSync(keyPath)) {
-    ssl = { cert: fs.readFileSync(certPath), key: fs.readFileSync(keyPath) };
-  }
-
-  wss = new WebSocketServer({ port: WS_PORT, cert: ssl?.cert, key: ssl?.key });
-  console.log('[mock] WebSocket wss://0.0.0.0:' + WS_PORT);
+  // Plain ws on loopback — TLS only on :8443 via server-https /ws proxy.
+  wss = new WebSocketServer({ port: WS_PORT, host: '127.0.0.1' });
+  console.log('[mock] WebSocket ws://127.0.0.1:' + WS_PORT);
 
   wss.on('connection', (ws) => {
     clients.add(ws);

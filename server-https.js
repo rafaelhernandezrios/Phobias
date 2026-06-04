@@ -3,7 +3,7 @@
  *
  * Sirve:
  *   - HTTPS estático desde ./app en el puerto 8443
- *   - Proxy WSS de /ws hacia wss://127.0.0.1:8765 (el recorder Python)
+ *   - Proxy WSS de /ws hacia el recorder en 127.0.0.1:8765 (ws:// en mock, wss:// con Python --wss)
  *
  * Así el navegador (incluido Oculus/iOS) solo necesita aceptar el cert
  * en un único puerto (8443) — el WebSocket viaja por el mismo origen.
@@ -24,7 +24,17 @@ const WebSocket = require('ws');
 const os = require('os');
 const PORT = 8443;
 const PORT_HTTP = 8080;
-const RECORDER_URL = 'wss://127.0.0.1:8765';
+const RECORDER_HOST = process.env.RECORDER_HOST || '127.0.0.1';
+const RECORDER_PORT = process.env.RECORDER_PORT || '8765';
+// Browser uses wss://host:8443/ws (TLS). Loopback recorder is usually plain ws:// (mock / default).
+const RECORDER_UPSTREAM_URLS = process.env.RECORDER_WS_URL
+  ? [process.env.RECORDER_WS_URL]
+  : USE_MOCK
+    ? [`ws://${RECORDER_HOST}:${RECORDER_PORT}`]
+    : [
+        `wss://${RECORDER_HOST}:${RECORDER_PORT}`,
+        `ws://${RECORDER_HOST}:${RECORDER_PORT}`,
+      ];
 const ROOT = path.join(__dirname, 'app');
 
 function lanIpv4sFromShell() {
@@ -126,9 +136,65 @@ const options = {
 
 const httpsServer = https.createServer(options, requestHandler);
 
-// /ws → proxy to the Python recorder. One TLS hop for the browser; the
-// upstream link to 127.0.0.1:8765 is loopback so cert validation is skipped.
+// /ws → proxy to recorder on loopback (ws:// or wss:// depending on mock / Python --wss).
 const wss = new WebSocket.Server({ noServer: true });
+
+function proxyToRecorder(clientWs) {
+  const queue = [];
+  let upstream = null;
+  let upstreamOpen = false;
+  let urlIndex = 0;
+
+  const closeBoth = () => {
+    try {
+      clientWs.close();
+    } catch (_) {}
+    try {
+      if (upstream) upstream.close();
+    } catch (_) {}
+  };
+
+  clientWs.on('message', (data) => {
+    if (upstreamOpen && upstream && upstream.readyState === WebSocket.OPEN) upstream.send(data);
+    else queue.push(data);
+  });
+  clientWs.on('close', closeBoth);
+  clientWs.on('error', closeBoth);
+
+  function connectNext() {
+    if (urlIndex >= RECORDER_UPSTREAM_URLS.length) {
+      console.error('[ws-proxy] recorder not reachable on', RECORDER_UPSTREAM_URLS.join(', '));
+      closeBoth();
+      return;
+    }
+    const url = RECORDER_UPSTREAM_URLS[urlIndex];
+    upstream = new WebSocket(url, { rejectUnauthorized: false });
+
+    upstream.on('open', () => {
+      upstreamOpen = true;
+      console.log('[ws-proxy] connected →', url);
+      while (queue.length) upstream.send(queue.shift());
+    });
+    upstream.on('message', (data) => {
+      if (clientWs.readyState === WebSocket.OPEN) clientWs.send(data);
+    });
+    upstream.on('close', () => {
+      if (upstreamOpen) closeBoth();
+    });
+    upstream.on('error', (err) => {
+      if (!upstreamOpen) {
+        console.warn('[ws-proxy]', url, '—', err.message);
+        urlIndex += 1;
+        connectNext();
+      } else {
+        console.error('[ws-proxy] upstream error:', err.message);
+        closeBoth();
+      }
+    });
+  }
+
+  connectNext();
+}
 
 httpsServer.on('upgrade', (req, socket, head) => {
   const urlPath = (req.url || '').split('?')[0];
@@ -136,40 +202,14 @@ httpsServer.on('upgrade', (req, socket, head) => {
     socket.destroy();
     return;
   }
-  wss.handleUpgrade(req, socket, head, (clientWs) => {
-    const upstream = new WebSocket(RECORDER_URL, { rejectUnauthorized: false });
-    const queue = [];
-    let upstreamOpen = false;
-
-    clientWs.on('message', (data) => {
-      if (upstreamOpen) upstream.send(data);
-      else queue.push(data);
-    });
-    upstream.on('open', () => {
-      upstreamOpen = true;
-      while (queue.length) upstream.send(queue.shift());
-    });
-    upstream.on('message', (data) => {
-      if (clientWs.readyState === WebSocket.OPEN) clientWs.send(data);
-    });
-
-    const closeBoth = () => {
-      try { clientWs.close(); } catch (e) {}
-      try { upstream.close(); } catch (e) {}
-    };
-    clientWs.on('close', closeBoth);
-    upstream.on('close', closeBoth);
-    clientWs.on('error', closeBoth);
-    upstream.on('error', (err) => {
-      console.error('[ws-proxy] upstream error:', err.message);
-      closeBoth();
-    });
-  });
+  wss.handleUpgrade(req, socket, head, proxyToRecorder);
 });
 
 function printUrls() {
   const lan = lanIpv4s();
-  const mode = USE_MOCK ? 'MOCK (Node EEG, no AURA)' : 'recorder @ ' + RECORDER_URL;
+  const mode = USE_MOCK
+    ? 'MOCK (Node EEG, no AURA)'
+    : 'recorder @ ' + RECORDER_UPSTREAM_URLS.join(' | ');
   console.log('');
   console.log('  Mode: ' + mode);
   console.log('');
@@ -191,7 +231,7 @@ function printUrls() {
     );
   }
   console.log('');
-  console.log('  WebSocket: wss://<host>:' + PORT + '/ws  →  ' + RECORDER_URL);
+  console.log('  WebSocket: wss://<host>:' + PORT + '/ws  →  ' + RECORDER_UPSTREAM_URLS.join(' | '));
   console.log('  Flow: disclosure → wait → Start from researcher panel');
   console.log('  Tip: accept self-signed cert on Quest and PC (npm run cert if needed).');
   console.log('');
@@ -199,7 +239,7 @@ function printUrls() {
 
 if (USE_MOCK) {
   const { startMockRecorder, stopMockRecorder } = require('./scripts/mock-recorder-node.js');
-  startMockRecorder(certPath, keyPath);
+  startMockRecorder();
   const shutdown = () => {
     stopMockRecorder();
     process.exit(0);
