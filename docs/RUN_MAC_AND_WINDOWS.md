@@ -74,14 +74,14 @@ Copy videos to `app\assets\videos\`.
 | **Mock (no AURA)** | Double-click `run-experiment-mock.bat` |
 | **Real EEG** | Double-click `run-experiment.bat` |
 
-### Fix "electron uninstall" / dev server error
+### Fix Electron errors (`failed to install correctly`, `electron uninstall`)
 
 ```cmd
 scripts\fix-electron-windows.cmd
 run-experiment-mock.bat
 ```
 
-Use **cmd outside Cursor**; clears `ELECTRON_RUN_AS_NODE`.
+Use **cmd outside Cursor** (not PowerShell in Cursor). Clears `ELECTRON_RUN_AS_NODE` and re-downloads `electron.exe`.
 
 ### URLs
 

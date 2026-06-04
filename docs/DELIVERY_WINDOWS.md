@@ -139,17 +139,34 @@ This happens when **Electron cannot start** (often in Cursor/VS Code because `EL
    ```
 3. Then double-click **`run-experiment-mock.bat`** (uses production build, not dev server).
 
-**Manual fix:**
+**Manual fix** (error: `Electron failed to install correctly`):
+
+```cmd
+cd C:\Users\atr-rp4\Desktop\Phobias
+scripts\fix-electron-windows.cmd
+```
+
+Or step by step:
 
 ```cmd
 set ELECTRON_RUN_AS_NODE=
+rmdir /s /q monitor-electron\node_modules\electron
 cd monitor-electron
-npm install
-npx electron install
-npm run build
+npm install electron@33.4.11 --save-dev
+node node_modules\electron\install.js
 cd ..
+node scripts\ensure-electron-install.cjs
+npm run build --prefix monitor-electron
 run-experiment-mock.bat
 ```
+
+If download fails (firewall/antivirus), try:
+
+```cmd
+npm config set electron_mirror https://npmmirror.com/mirrors/electron/
+```
+
+Then run `scripts\fix-electron-windows.cmd` again.
 
 The project now starts the monitor with `npm run start:wss` (build + run) instead of `electron-vite dev`, which is more stable on Windows.
 

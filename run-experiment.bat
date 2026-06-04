@@ -63,6 +63,16 @@ echo [python] Ensuring .venv...
 call npm run setup:python
 echo.
 
+echo [electron] Verificando binario...
+node scripts\ensure-electron-install.cjs
+if errorlevel 1 (
+    echo.
+    echo Electron no instalado. Ejecuta primero: scripts\fix-electron-windows.cmd
+    pause
+    exit /b 1
+)
+echo.
+
 if "%MOCK%"=="1" (
     echo [start] MOCK stack — no AURA / EEG hardware
 ) else (
