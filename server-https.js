@@ -15,7 +15,10 @@
  */
 
 const https = require('https');
-const USE_MOCK = process.argv.includes('--mock');
+// Default: embedded mock recorder (no Python). Use --real-recorder with aura_recorder.py on :8765.
+const USE_MOCK =
+  process.argv.includes('--mock') ||
+  (!process.argv.includes('--real-recorder') && !process.argv.includes('--no-mock'));
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -134,6 +137,14 @@ function proxyToRecorder(clientWs) {
   function connectNext() {
     if (urlIndex >= RECORDER_UPSTREAM_URLS.length) {
       console.error('[ws-proxy] recorder not reachable on', RECORDER_UPSTREAM_URLS.join(', '));
+      try {
+        clientWs.send(
+          JSON.stringify({
+            type: 'recorder_error',
+            message: 'EEG recorder not running. Use: npm run experiment:mock',
+          }),
+        );
+      } catch (_) {}
       closeBoth();
       return;
     }
@@ -143,6 +154,9 @@ function proxyToRecorder(clientWs) {
     upstream.on('open', () => {
       upstreamOpen = true;
       console.log('[ws-proxy] connected →', url);
+      try {
+        clientWs.send(JSON.stringify({ type: 'recorder_ready', upstream: url }));
+      } catch (_) {}
       while (queue.length) upstream.send(queue.shift());
     });
     upstream.on('message', (data) => {

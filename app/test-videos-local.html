@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Test videos + WebSocket (same PC)</title>
+  <style>
+    body { font-family: system-ui; background: #111; color: #eee; padding: 16px; }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; }
+    iframe { width: 48%; min-width: 320px; height: 70vh; border: 1px solid #444; border-radius: 8px; }
+    #log { font-family: monospace; font-size: 12px; white-space: pre-wrap; background: #1a1a1a; padding: 12px; border-radius: 8px; max-height: 200px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>Local test — researcher + participant (same PC)</h1>
+  <p>1) Run <code>npm run experiment:mock</code> 2) Press Start on the left 3) Video should play on the right</p>
+  <div class="row">
+    <iframe title="researcher" src="researcher.html"></iframe>
+    <iframe title="participant" src="experiment-wait-config.html?participant=1"></iframe>
+  </div>
+  <p id="log">Waiting…</p>
+  <script>
+    document.getElementById('log').textContent =
+      'If video does not start: check npm run test:ws and that app/assets/videos/*.mp4 exist.';
+  </script>
+</body>
+</html>

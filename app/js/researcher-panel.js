@@ -85,11 +85,20 @@
     try {
       ws = new WebSocket(wsUrl());
       ws.onopen = function () {
-        setWsStatus('connected', 'WebSocket: Connected');
+        setWsStatus('connecting', 'WebSocket: Connecting…');
       };
       ws.onmessage = function (ev) {
         try {
-          onWsMessage(JSON.parse(ev.data));
+          var data = JSON.parse(ev.data);
+          if (data.type === 'recorder_ready') {
+            setWsStatus('connected', 'WebSocket: Connected (recorder ready)');
+          } else if (data.type === 'recorder_error') {
+            setWsStatus('disconnected', 'WebSocket: ' + (data.message || 'recorder error'));
+            if (el.sendError) el.sendError.textContent = data.message || 'Start server with npm run experiment:mock';
+          } else if (data.status === 'started') {
+            if (el.sendError) el.sendError.textContent = 'Experiment started — participant should see video';
+          }
+          onWsMessage(data);
         } catch (e) {}
       };
       ws.onclose = function () {
@@ -185,6 +194,7 @@
     var st = el.sessionType.value;
     var lvl = parseInt(el.startLevel.value, 10);
     if (st === 'auto_sequence') lvl = 0;
+    if (el.sendError) el.sendError.textContent = '';
     send({
       type: 'controller_start',
       phobia_id: p.id,
@@ -195,6 +205,7 @@
       session_type: st,
       baseline_calibration_seconds: parseFloat(el.baselineSec.value) || 0,
     });
+    if (el.sendError) el.sendError.textContent = 'Start sent — open participant page in another tab/window';
     document.querySelector('[data-tab="metrics"]').click();
   });
 

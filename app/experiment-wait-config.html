@@ -301,6 +301,8 @@
       var waitingVrWs = document.getElementById('waiting-vr-ws');
       var lastLevelChangeTs = 0;
 
+      var recorderReady = false;
+
       function setWsStatus(klass, text) {
         if (!wsStatusEl) return;
         wsStatusEl.className = 'ws-status ' + klass;
@@ -389,7 +391,12 @@
       }
 
       function getVideoUrlForLevel(level, cb) {
-        if (!contentData || !phobiaId) { cb(null); return; }
+        if (!contentData || !phobiaId) {
+          var pid = phobiaId || 'arachnophobia';
+          if (level === 0) cb('assets/videos/' + pid + '_baseline.mp4');
+          else cb('assets/videos/' + pid + '_level' + level + '.mp4');
+          return;
+        }
         // Baseline is represented as level 0.
         if (level === 0) {
           // Backward compatibility: older flows might use phobiaId === "baseline".
@@ -433,43 +440,56 @@
         getVideoUrlForLevel(level, function (url) {
           var rawUrl = url || (contentData && contentData.baseline && contentData.baseline.video_url_360) || 'assets/videos/baseline.mp4';
           var fullUrl = (typeof assetUrl === 'function') ? assetUrl(rawUrl) : rawUrl;
+          var sphere = document.getElementById('videosphere');
 
           if (statusEl) {
             statusEl.textContent = 'Loading level ' + level + '…';
             statusEl.classList.remove('ready');
             statusEl.classList.remove('error');
           }
+          if (videosphereWorld) videosphereWorld.setAttribute('visible', true);
+          if (sphere) sphere.setAttribute('visible', true);
 
-          // Force texture refresh on new src.
           window._playerTextureApplied = false;
           window._playerForceReapply = true;
 
-          if (videoEl) {
-            videoEl.muted = true; // keep muted for autoplay reliability
-            videoEl.setAttribute('src', fullUrl);
-            videoEl.load();
-          }
-
           if (!videoEl) return;
 
-          videoEl.addEventListener('loadeddata', function onLoaded() {
-            videoEl.removeEventListener('loadeddata', onLoaded);
+          function onVideoReady() {
             if (statusEl) {
               statusEl.textContent = autoPlay ? 'Playing…' : 'Ready';
               statusEl.classList.add('ready');
             }
+            if (sphere) sphere.setAttribute('visible', true);
             if (autoPlay) {
               videoEl.muted = true;
               tryPlayVideo();
             }
-          }, { once: true });
+          }
 
-          videoEl.addEventListener('error', function () {
+          function onVideoFail() {
             if (statusEl) {
-              statusEl.textContent = 'Error loading video';
+              statusEl.textContent = 'Video error: ' + rawUrl;
               statusEl.classList.add('error');
             }
-          }, { once: true });
+            if (participantVrMode && waitingVrWs) {
+              waitingVrWs.setAttribute('value', 'Video missing? Check app/assets/videos/');
+              waitingVrWs.setAttribute('color', '#ef4444');
+            }
+          }
+
+          videoEl.pause();
+          videoEl.removeAttribute('src');
+          videoEl.load();
+          videoEl.setAttribute('src', fullUrl);
+          videoEl.load();
+
+          videoEl.addEventListener('loadeddata', onVideoReady, { once: true });
+          videoEl.addEventListener('canplay', onVideoReady, { once: true });
+          videoEl.addEventListener('error', onVideoFail, { once: true });
+          setTimeout(function () {
+            if (autoPlay && videoEl.readyState >= 2) onVideoReady();
+          }, 8000);
         });
       }
 
@@ -704,14 +724,26 @@
         try {
           ws = new WebSocket(getWsUrl());
           ws.onopen = function () {
-            setWsStatus('connected', 'WebSocket: Connected');
+            recorderReady = false;
+            setWsStatus('connecting', 'WebSocket: connecting to recorder…');
             updateWaitingMessage();
             if (qsPanel && !isQuestBrowser) qsPanel.style.display = 'block';
+            setTimeout(function () {
+              if (!recorderReady && ws && ws.readyState === WebSocket.OPEN) {
+                setWsStatus('disconnected', 'WebSocket: recorder not ready — run npm run experiment:mock');
+              }
+            }, 4000);
           };
           ws.onmessage = function (ev) {
             try {
               var data = JSON.parse(ev.data);
-              if (data.type === 'adaptive_state') {
+              if (data.type === 'recorder_ready') {
+                recorderReady = true;
+                setWsStatus('connected', 'WebSocket: Connected (recorder ready)');
+              } else if (data.type === 'recorder_error') {
+                recorderReady = false;
+                setWsStatus('disconnected', 'WebSocket: ' + (data.message || 'recorder error'));
+              } else if (data.type === 'adaptive_state') {
                 // Always show the EEG index on HUD, even if levels are auto-timed.
                 if (fearIndexEl && data.fear_index != null) {
                   fearIndexEl.textContent = 'Index: ' + (Number(data.fear_index).toFixed(2));
@@ -727,7 +759,15 @@
               } else if (data.type === 'auto_adaptation_toggle') {
                 autoAdaptationEnabled = !!data.enabled;
               } else if (data.type === 'start_experiment') {
+                recorderReady = true;
+                setWsStatus('connected', 'WebSocket: session started');
                 startExperiment(data);
+              } else if (data.status === 'started' && data.phobia_id) {
+                startExperiment({
+                  phobia_id: data.phobia_id,
+                  level: data.level,
+                  experiment_id: data.experiment_id,
+                });
               } else if (data.type === 'stop_video') {
                 stopExperimentUI();
               } else if (data.status === 'stopped') {
