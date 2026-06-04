@@ -695,8 +695,7 @@
         // Si el usuario hizo el accept dentro de VR, conservamos VR con el querystring ?vr=1.
         var vrActive = false;
         try { vrActive = scene && scene.is && scene.is('vr-mode'); } catch (e) { vrActive = false; }
-        var qs = vrActive ? '?vr=1' : '';
-        window.location.href = 'experiment-wait-config.html' + qs;
+        window.location.href = 'experiment-wait-config.html?vr=1&participant=1';
       }
       function decline() {
         if (window.VRPhobiaLogger) VRPhobiaLogger.sessionEnd();

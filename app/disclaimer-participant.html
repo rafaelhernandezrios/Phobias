@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VR Phobia — Consent</title>
+  <script src="https://aframe.io/releases/1.7.0/aframe.min.js"></script>
+  <link rel="stylesheet" href="css/shared.css" />
+  <style>
+    html, body { margin: 0; overflow: hidden; background: #0a0a12; min-height: 100vh; }
+    #consent-2d {
+      position: fixed; inset: 0; z-index: 200;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px; background: rgba(10, 12, 18, 0.92);
+    }
+    body.vr-active #consent-2d { display: none !important; }
+    .card {
+      max-width: 420px; padding: 24px; border-radius: 12px;
+      background: rgba(20, 25, 34, 0.95);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary); text-align: center;
+    }
+    .card p { font-size: 0.9rem; color: var(--text-muted); line-height: 1.5; }
+    .btn-row { display: flex; gap: 10px; margin-top: 16px; justify-content: center; flex-wrap: wrap; }
+    a-scene { width: 100%; height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="consent-2d">
+    <div class="card">
+      <h1 style="margin:0 0 12px;font-size:1.2rem;">VR Phobia — Consent</h1>
+      <p>360° exposure for research. You can stop anytime. Data may be recorded.<br>研究用VR曝露。いつでも停止可能。</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="btn-accept">Accept / 同意</button>
+        <button type="button" class="btn btn-outline" id="btn-vr">Enter VR / VR開始</button>
+      </div>
+    </div>
+  </div>
+
+  <a-scene embedded background="color: #0a0a12" id="scene">
+    <a-entity position="0 1.6 0">
+      <a-entity camera look-controls></a-entity>
+    </a-entity>
+    <a-entity position="0 2.2 -1.6">
+      <a-text value="VR Phobia — Consent / 同意" anchor="center" align="center" width="3" color="#f0f2f5" font-size="0.2"></a-text>
+      <a-text value="Intense phobia scenes. EMERGENCY EXIT anytime." anchor="center" align="center" position="0 -0.35 0" width="2.8" color="#a0a8b4" font-size="0.09"></a-text>
+      <a-entity id="btn-accept-vr" class="clickable" position="0 -0.85 0" data-action="accept">
+        <a-plane width="1.4" height="0.35" color="#6366f1"></a-plane>
+        <a-text value="Accept / 同意" anchor="center" align="center" position="0 0 0.01" width="1.2" color="#fff" font-size="0.1"></a-text>
+      </a-entity>
+    </a-entity>
+    <a-light type="ambient" intensity="0.8"></a-light>
+  </a-scene>
+
+  <script>
+    (function () {
+      var scene = document.getElementById('scene');
+      function goWait() {
+        window.location.replace('experiment-wait-config.html?vr=1&participant=1');
+      }
+      document.getElementById('btn-accept').addEventListener('click', goWait);
+      document.getElementById('btn-vr').addEventListener('click', function () {
+        if (scene && scene.enterVR) scene.enterVR();
+        document.body.classList.add('vr-active');
+      });
+      document.getElementById('btn-accept-vr').addEventListener('click', goWait);
+      if (scene) {
+        scene.addEventListener('enter-vr', function () {
+          document.body.classList.add('vr-active');
+        });
+      }
+      var p = new URLSearchParams(location.search);
+      if (p.get('auto') === '1') goWait();
+    })();
+  </script>
+</body>
+</html>

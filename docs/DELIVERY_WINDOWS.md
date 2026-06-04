@@ -33,7 +33,11 @@ Optional: **Git** (not required for running; npm scripts work without Bash).
    ```
    All lines should show `[OK]`.
 
-3. If Windows Firewall asks, allow **Node.js** on **private networks**.
+3. Allow HTTPS on the LAN (once, **Administrator** cmd):
+   ```cmd
+   scripts\open-firewall-windows.cmd
+   ```
+   Or when prompted, allow **Node.js** on **private networks** for port **8443**.
 
 ---
 
@@ -64,7 +68,7 @@ npm run lan-urls
 
 | Role | URL |
 |------|-----|
-| **VR / Quest (participant)** | `https://<YOUR_PC_IP>:8443/` |
+| **VR / Quest (participant)** | `https://<YOUR_PC_IP>:8443/disclaimer-participant.html` |
 | **Researcher (PC browser)** | `https://<YOUR_PC_IP>:8443/researcher.html` |
 | Local only | `https://127.0.0.1:8443/` and `.../researcher.html` |
 

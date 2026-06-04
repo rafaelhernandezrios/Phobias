@@ -18,14 +18,8 @@ try {
 }
 
 // Collect all local IPv4 addresses so the cert is valid from LAN devices (VR headset, phones).
-const os = require('os');
-const lanIps = [];
-const ifaces = os.networkInterfaces();
-for (const name of Object.keys(ifaces)) {
-  for (const ni of ifaces[name] || []) {
-    if (ni.family === 'IPv4' && !ni.internal) lanIps.push(ni.address);
-  }
-}
+const { lanIpv4s } = require('./scripts/lan-ips.cjs');
+const lanIps = lanIpv4s();
 
 const altNames = [
   { type: 2, value: 'localhost' },          // DNS
@@ -61,5 +55,9 @@ fs.writeFileSync(path.join(dir, 'cert.pem'), pems.cert);
 fs.writeFileSync(path.join(dir, 'key.pem'), pems.private);
 
 console.log('Certificado creado: cert.pem, key.pem');
-console.log('Ahora puedes usar: npx http-server -p 8443 -S');
-console.log('O: npm run serve');
+console.log('');
+console.log('Important: run "npm run cert" again if you change Wi‑Fi or LAN IP.');
+console.log('Quest must open https://<THIS-PC-IP>:8443/... (not 127.0.0.1).');
+if (!lanIps.length) {
+  console.log('Warning: no LAN IPv4 detected — connect Wi‑Fi, then run npm run cert again.');
+}

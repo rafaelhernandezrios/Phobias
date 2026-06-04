@@ -21,7 +21,6 @@ const fs = require('fs');
 const path = require('path');
 const WebSocket = require('ws');
 
-const os = require('os');
 const PORT = 8443;
 const PORT_HTTP = 8080;
 const RECORDER_HOST = process.env.RECORDER_HOST || '127.0.0.1';
@@ -37,36 +36,7 @@ const RECORDER_UPSTREAM_URLS = process.env.RECORDER_WS_URL
       ];
 const ROOT = path.join(__dirname, 'app');
 
-function lanIpv4sFromShell() {
-  const { execSync } = require('child_process');
-  const ips = [];
-  if (process.platform === 'darwin') {
-    for (const iface of ['en0', 'en1', 'en5', 'bridge0']) {
-      try {
-        const ip = execSync(`ipconfig getifaddr ${iface}`, { encoding: 'utf8' }).trim();
-        if (ip) ips.push(ip);
-      } catch {
-        /* absent */
-      }
-    }
-  }
-  return [...new Set(ips)];
-}
-
-function lanIpv4s() {
-  try {
-    const ips = [];
-    for (const ifaces of Object.values(os.networkInterfaces())) {
-      for (const ni of ifaces || []) {
-        if (ni.family === 'IPv4' && !ni.internal) ips.push(ni.address);
-      }
-    }
-    if (ips.length) return [...new Set(ips)];
-  } catch {
-    /* ignore */
-  }
-  return lanIpv4sFromShell();
-}
+const { lanIpv4s } = require('./scripts/lan-ips.cjs');
 
 function getMimeType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -213,13 +183,14 @@ function printUrls() {
   console.log('');
   console.log('  Mode: ' + mode);
   console.log('');
-  console.log('  Participant / VR (Quest):');
-  console.log('    https://127.0.0.1:' + PORT + '/');
-  console.log('    https://localhost:' + PORT + '/');
+  console.log('  Participant / Quest (consent → VR wait → videos):');
+  console.log('    https://127.0.0.1:' + PORT + '/disclaimer-participant.html');
   if (lan.length) {
-    lan.forEach((ip) => console.log('    https://' + ip + ':' + PORT + '/'));
+    lan.forEach((ip) =>
+      console.log('    https://' + ip + ':' + PORT + '/disclaimer-participant.html'),
+    );
   } else {
-    console.log('    (no LAN IPv4 — connect Wi‑Fi for Quest URL)');
+    console.log('    (no LAN IPv4 — connect Wi‑Fi, then npm run cert)');
   }
   console.log('');
   console.log('  Researcher panel / Panel investigador (PC browser):');
@@ -233,7 +204,14 @@ function printUrls() {
   console.log('');
   console.log('  WebSocket: wss://<host>:' + PORT + '/ws  →  ' + RECORDER_UPSTREAM_URLS.join(' | '));
   console.log('  Flow: disclosure → wait → Start from researcher panel');
-  console.log('  Tip: accept self-signed cert on Quest and PC (npm run cert if needed).');
+  console.log('  LAN checklist:');
+  console.log('    1) PC + Quest on the SAME Wi‑Fi (not guest network)');
+  console.log('    2) On this PC: npm run cert  (after joining lab Wi‑Fi)');
+  if (process.platform === 'win32') {
+    console.log('    3) Windows: scripts\\open-firewall-windows.cmd (as Admin)');
+  }
+  console.log('    4) Quest browser: type https://<PC-IP>:' + PORT + '/disclaimer-participant.html');
+  console.log('    5) Accept the security warning once per device');
   console.log('');
 }
 
@@ -255,7 +233,7 @@ httpsServer.listen(PORT, '0.0.0.0', () => {
 http.createServer((req, res) => {
   res.writeHead(301, { Location: `https://localhost:${PORT}${req.url}` });
   res.end();
-}).listen(PORT_HTTP, () => {
-  console.log('  HTTP → HTTPS: http://localhost:' + PORT_HTTP);
+}).listen(PORT_HTTP, '127.0.0.1', () => {
+  console.log('  HTTP → HTTPS: http://127.0.0.1:' + PORT_HTTP);
   console.log('');
 });

@@ -133,7 +133,7 @@
   }
 
   function initUrls() {
-    var vr = baseUrl() + '/disclaimer-v2.html';
+    var vr = baseUrl() + '/disclaimer-participant.html';
     var panel = baseUrl() + '/researcher.html';
     if (el.vrUrl) {
       el.vrUrl.href = vr;
