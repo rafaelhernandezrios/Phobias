@@ -15,7 +15,23 @@ let currentExperimentId = 'session';
 let autoAdaptationEnabled = true;
 let recordingT0 = 0;
 let baselineCalibrationS = 0;
+let currentSessionType = 'hybrid';
+let currentDurationSeconds = 0;
 let broadcastTimer = null;
+
+function sessionSnapshotMessage() {
+  if (!recording) return null;
+  return {
+    type: 'start_experiment',
+    phobia_id: currentPhobiaId,
+    phobia_name: currentPhobiaId,
+    level: currentLevel,
+    experiment_id: currentExperimentId,
+    duration_seconds: currentDurationSeconds,
+    session_type: currentSessionType,
+    baseline_calibration_seconds: baselineCalibrationS,
+  };
+}
 
 function syntheticFearIndex(t) {
   const base = 0.3 * Math.sin((2 * Math.PI * t) / 30);
@@ -79,6 +95,9 @@ function handleMessage(ws, data) {
     if (Number.isNaN(lvl)) lvl = 2;
     currentLevel = Math.max(0, Math.min(5, Math.floor(lvl)));
     currentExperimentId = String(data.experiment_id || data.experimentId || 'session');
+    currentSessionType = String(data.session_type || data.sessionType || 'hybrid');
+    const dur = Number(data.duration_seconds ?? data.durationSeconds ?? 0);
+    currentDurationSeconds = Number.isNaN(dur) ? 0 : Math.max(0, dur);
     const bcal = Number(data.baseline_calibration_seconds || 0);
     baselineCalibrationS = Number.isNaN(bcal) ? 0 : Math.max(0, bcal);
     recording = true;
@@ -91,8 +110,8 @@ function handleMessage(ws, data) {
       phobia_name: data.phobia_name,
       level: currentLevel,
       experiment_id: currentExperimentId,
-      duration_seconds: data.duration_seconds ?? data.durationSeconds,
-      session_type: data.session_type || data.sessionType || 'hybrid',
+      duration_seconds: currentDurationSeconds,
+      session_type: currentSessionType,
       baseline_calibration_seconds: baselineCalibrationS,
     });
 
@@ -153,6 +172,14 @@ function startMockRecorder() {
   wss.on('connection', (ws) => {
     clients.add(ws);
     console.log('[mock] Client connected (' + clients.size + ')');
+    const snap = sessionSnapshotMessage();
+    if (snap) {
+      try {
+        ws.send(JSON.stringify(snap));
+        ws.send(JSON.stringify({ type: 'force_level', level: currentLevel }));
+        console.log('[mock] Sent session snapshot to new client (level', currentLevel + ')');
+      } catch (_) {}
+    }
     ws.on('message', (raw) => {
       try {
         handleMessage(ws, JSON.parse(String(raw)));

@@ -14,6 +14,7 @@
     durationSec: document.getElementById('duration-sec'),
     baselineSec: document.getElementById('baseline-sec'),
     sendError: document.getElementById('send-error'),
+    btnStart: document.getElementById('btn-start'),
     fearIndex: document.getElementById('fear-index'),
     moodLabel: document.getElementById('mood-label'),
     levelSuggestion: document.getElementById('level-suggestion'),
@@ -111,21 +112,28 @@
           return { id: p.id, name: p.name || p.id };
         });
         if (!phobias.length) phobias = [{ id: 'arachnophobia', name: 'Arachnophobia' }];
-        el.phobiaSelect.innerHTML = '';
-        phobias.forEach(function (p, i) {
-          var opt = document.createElement('option');
-          opt.value = String(i);
-          opt.textContent = p.name;
-          el.phobiaSelect.appendChild(opt);
-        });
+        fillPhobiaSelect();
       })
       .catch(function () {
         phobias = [{ id: 'arachnophobia', name: 'Arachnophobia' }];
+        fillPhobiaSelect();
       });
   }
 
+  function fillPhobiaSelect() {
+    if (!el.phobiaSelect) return;
+    el.phobiaSelect.innerHTML = '';
+    phobias.forEach(function (p, i) {
+      var opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = p.name;
+      el.phobiaSelect.appendChild(opt);
+    });
+    if (el.btnStart) el.btnStart.disabled = false;
+  }
+
   function initUrls() {
-    var vr = baseUrl() + '/';
+    var vr = baseUrl() + '/disclaimer-v2.html';
     var panel = baseUrl() + '/researcher.html';
     if (el.vrUrl) {
       el.vrUrl.href = vr;
@@ -165,9 +173,15 @@
     });
   }
 
+  if (el.btnStart) el.btnStart.disabled = true;
+
   document.getElementById('btn-start').addEventListener('click', function () {
     var idx = parseInt(el.phobiaSelect.value, 10) || 0;
-    var p = phobias[idx] || phobias[0];
+    var p = phobias[idx] || phobias[0] || { id: 'arachnophobia', name: 'Arachnophobia' };
+    if (!p || !p.id) {
+      if (el.sendError) el.sendError.textContent = 'Phobias still loading — wait a moment';
+      return;
+    }
     var st = el.sessionType.value;
     var lvl = parseInt(el.startLevel.value, 10);
     if (st === 'auto_sequence') lvl = 0;
